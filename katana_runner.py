@@ -26,7 +26,11 @@ class KatanaRunner:
         # 🍪 THE AUTHENTICATION UPGRADE 🍪
         if cookie:
             logging.info("Katana: Injecting Session Cookie for authenticated deep crawling...")
-            cmd.extend(["-H", f"Cookie: {cookie}"])
+            # SECURITY: Strip newlines/carriage returns to prevent header injection
+            safe_cookie = cookie.replace('\n', '').replace('\r', '').replace('\t', '')
+            if safe_cookie != cookie:
+                logging.warning("⚠️  Removed invalid characters from cookie")
+            cmd.extend(["-H", f"Cookie: {safe_cookie}"])
         
         deep_urls = []
         try:

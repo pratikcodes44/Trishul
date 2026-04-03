@@ -1,0 +1,52 @@
+# =====================================================
+# Project Trishul - Docker Compose
+# =====================================================
+# Usage:
+#   docker-compose up -d arena     # Start vulnerable test server
+#   docker-compose run trishul --demo  # Run demo mode
+# =====================================================
+
+services:
+  # Main Trishul scanner
+  trishul:
+    build: .
+    container_name: trishul
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - ./reports:/app/reports
+      - ./enterprise_tickets:/app/enterprise_tickets
+    networks:
+      - trishul-net
+    stdin_open: true
+    tty: true
+
+  # Vulnerable test server for demos
+  arena:
+    build: .
+    container_name: trishul-arena
+    command: ["python", "vulnerable_arena.py"]
+    ports:
+      - "5000:5000"
+    networks:
+      - trishul-net
+
+  # Streamlit Dashboard
+  dashboard:
+    build: .
+    container_name: trishul-dashboard
+    command: ["streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./recon_state.db:/app/recon_state.db:ro
+      - ./reports:/app/reports:ro
+      - ./enterprise_tickets:/app/enterprise_tickets:ro
+    networks:
+      - trishul-net
+
+networks:
+  trishul-net:
+    driver: bridge

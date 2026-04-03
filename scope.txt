@@ -1,0 +1,30 @@
+# Trishul Scope File
+# Define authorized testing targets
+# Lines starting with # are comments
+# Lines starting with ! are exclusions (out of scope)
+
+# Exact domain
+example.com
+
+# All subdomains (wildcard)
+*.example.com
+
+# All subdomain levels (deep wildcard)
+**.api.example.com
+
+# Specific subdomain
+staging.example.com
+
+# IP addresses
+192.168.1.100
+
+# CIDR range
+10.0.0.0/8
+
+# Regex pattern (advanced)
+regex:^.*\.test\.example\.com$
+
+# Exclusions (must NOT test these)
+!production.example.com
+!admin.example.com
+!*.internal.example.com

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Trishul - AI-Powered Autonomous Security Platform</title>
+    <meta name="description" content="Open-source autonomous cybersecurity platform for bug bounty hunting and enterprise security auditing. AI-powered WAF evasion, continuous monitoring, compliance reporting.">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0e27;
+            color: #e4e7eb;
+            overflow-x: hidden;
+        }
+        
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* Animated gradient background */
+        .gradient-bg {
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        /* Glowing text effect */
+        .glow {
+            text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        
+        /* Terminal-style code blocks */
+        .terminal {
+            background: #1e1e2e;
+            border: 1px solid #3b4252;
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .terminal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+            animation: scan 2s linear infinite;
+        }
+        
+        @keyframes scan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        /* Neon button */
+        .btn-neon {
+            position: relative;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border: none;
+            padding: 1rem 2.5rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-neon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
+        }
+        
+        /* Feature cards */
+        .feature-card {
+            background: linear-gradient(135deg, rgba(30, 30, 46, 0.6), rgba(27, 34, 54, 0.4));
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .feature-card:hover {
+            border-color: rgba(59, 130, 246, 0.5);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+        }
+        
+        /* Pulse animation for badges */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% auto;
+            animation: gradientShift 3s ease infinite;
+        }
+        
+        /* Smooth scroll */
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0a0e27;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="gradient-bg">
+    
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-opacity-90 backdrop-blur-md bg-[#0a0e27] border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">🔱</span>
+                    <span class="text-xl font-bold gradient-text">PROJECT TRISHUL</span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#features" class="text-gray-300 hover:text-blue-400 transition">Features</a>
+                    <a href="#pricing" class="text-gray-300 hover:text-blue-400 transition">Pricing</a>
+                    <a href="https://github.com/yourusername/trishul" class="text-gray-300 hover:text-blue-400 transition">Docs</a>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="https://github.com/yourusername/trishul" target="_blank" class="text-gray-300 hover:text-blue-400 transition">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    </a>
+                    <button onclick="window.location.href='https://github.com/yourusername/trishul'" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                        Get Started
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto text-center">
+            <div class="inline-block px-4 py-2 bg-blue-900 bg-opacity-30 border border-blue-500 rounded-full mb-6">
+                <span class="text-blue-400 text-sm font-semibold mono">🚀 OPEN SOURCE • AI-POWERED • PRODUCTION-READY</span>
+            </div>
+            
+            <h1 class="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+                <span class="block glow">Autonomous Security Platform</span>
+                <span class="block gradient-text mt-2">for Bug Bounty & Enterprise</span>
+            </h1>
+            
+            <p class="text-xl md:text-2xl text-gray-400 mb-12 max-w-3xl mx-auto">
+                AI-powered reconnaissance pipeline that chains 7+ security tools with intelligent orchestration. 
+                Detect vulnerabilities, evade WAFs, generate compliance reports — all automated.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+                <a href="https://github.com/yourusername/trishul" class="btn-neon text-white text-lg inline-flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    View on GitHub
+                </a>
+                <a href="https://github.com/yourusername/trishul#demo" class="bg-transparent border-2 border-blue-500 hover:bg-blue-500 hover:bg-opacity-20 text-white px-8 py-4 rounded-lg text-lg font-semibold transition inline-flex items-center justify-center">
+                    Watch Demo
+                </a>
+            </div>
+            
+            <!-- Terminal Demo -->
+            <div class="terminal max-w-4xl mx-auto text-left">
+                <div class="flex items-center space-x-2 mb-4">
+                    <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span class="text-gray-500 text-sm ml-4">~/trishul</span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div><span class="text-green-400">$</span> <span class="text-blue-400">python3 main.py</span> <span class="text-gray-500">-d target.com -m 2 -y</span></div>
+                    <div class="text-gray-400">🔱 TRISHUL v1.0 - Autonomous Security Platform</div>
+                    <div class="text-gray-400">🔍 Phase 1: OSINT Reconnaissance... <span class="text-green-400">✓</span></div>
+                    <div class="text-gray-400">🔍 Phase 2: Subdomain Discovery... <span class="text-yellow-400">⚡ 247 found</span></div>
+                    <div class="text-gray-400">🔌 Phase 3: Port Scanning... <span class="text-yellow-400">⚡ 18 open</span></div>
+                    <div class="text-gray-400">🎯 Phase 7: Nuclei Attack... <span class="text-red-400 pulse">🔴 5 CRITICAL vulns detected</span></div>
+                    <div class="text-gray-400">📨 Discord notification sent</div>
+                    <div class="text-green-400">✅ HackerOne report generated: reports/HACKERONE_REPORT_target_com_20260327.md</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="py-16 px-4 sm:px-6 lg:px-8 border-y border-gray-800">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                <div>
+                    <div class="text-4xl md:text-5xl font-bold text-blue-400">7+</div>
+                    <div class="text-gray-400 mt-2">Security Tools</div>
+                </div>
+                <div>
+                    <div class="text-4xl md:text-5xl font-bold text-green-400">2,500+</div>
+                    <div class="text-gray-400 mt-2">Lines of Code</div>
+                </div>
+                <div>
+                    <div class="text-4xl md:text-5xl font-bold text-purple-400">100%</div>
+                    <div class="text-gray-400 mt-2">Open Source</div>
+                </div>
+                <div>
+                    <div class="text-4xl md:text-5xl font-bold text-pink-400">24/7</div>
+                    <div class="text-gray-400 mt-2">Monitoring Ready</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-20 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4 glow">
+                    Why Choose <span class="gradient-text">Trishul?</span>
+                </h2>
+                <p class="text-xl text-gray-400">Enterprise-grade features that set us apart</p>
+            </div>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="feature-card">
+                    <div class="text-4xl mb-4">🤖</div>
+                    <h3 class="text-xl font-bold mb-3 text-blue-400">AI-Powered WAF Evasion</h3>
+                    <p class="text-gray-400">Ollama LLM integration detects rate limiting and automatically adjusts scan parameters to bypass WAFs intelligently.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="text-4xl mb-4">⚡</div>
+                    <h3 class="text-xl font-bold mb-3 text-green-400">7-Phase Attack Pipeline</h3>
+                    <p class="text-gray-400">OSINT → Subdomain Discovery → Port Scan → Live Probing → Crawling → Historical Mining → Vulnerability Scan</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="text-4xl mb-4">🎯</div>
+                    <h3 class="text-xl font-bold mb-3 text-purple-400">Dual Operating Modes</h3>
+                    <p class="text-gray-400"><strong>Mode 1:</strong> Enterprise auditing with Jira tickets<br><strong>Mode 2:</strong> Autonomous bug bounty with HackerOne reports</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="text-4xl mb-4">🛡️</div>
+                    <h3 class="text-xl font-bold mb-3 text-pink-400">Compliance Mapping</h3>
+                    <p class="text-gray-400">Every vulnerability tagged with SOC2, ISO-27001, and GDPR compliance violations. Perfect for enterprise audits.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="text-4xl mb-4">🔍</div>
+                    <h3 class="text-xl font-bold mb-3 text-yellow-400">5 OSINT Modules</h3>
+                    <p class="text-gray-400">Certificate transparency, GitHub secret hunting, cloud bucket enumeration, DNS analysis, technology fingerprinting.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h3 class="text-xl font-bold mb-3 text-indigo-400">Real-Time Dashboard</h3>
+                    <p class="text-gray-400">Streamlit dashboard with live metrics, attack surface telemetry, and historical ticket tracking.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-20 px-4 sm:px-6 lg:px-8 bg-opacity-30 bg-gray-900">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Open Core Pricing</h2>
+                <p class="text-xl text-gray-400">Choose the plan that fits your needs</p>
+            </div>
+            
+            <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <div class="feature-card">
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold mb-2">Open Source</h3>
+                        <div class="text-5xl font-bold my-6">
+                            <span class="gradient-text">FREE</span>
+                        </div>
+                        <p class="text-gray-400 mb-6">Perfect for individual researchers</p>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>All 7 security tools</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>Dual operating modes</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>Local AI (Ollama)</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>Community support</span>
+                        </li>
+                    </ul>
+                    <a href="https://github.com/yourusername/trishul" class="block w-full text-center bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg transition">
+                        Get Started
+                    </a>
+                </div>
+                
+                <div class="feature-card border-2 border-blue-500 relative">
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
+                        POPULAR
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold mb-2">Premium</h3>
+                        <div class="text-5xl font-bold my-6">
+                            <span class="text-blue-400">$99</span>
+                            <span class="text-xl text-gray-400">/month</span>
+                        </div>
+                        <p class="text-gray-400 mb-6">For serious bug bounty hunters</p>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span><strong>Everything in Free</strong></span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-blue-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>GPT-4 AI integration</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-blue-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>Custom Nuclei templates</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-blue-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>Priority support</span>
+                        </li>
+                    </ul>
+                    <button class="btn-neon w-full text-white py-3 rounded-lg">
+                        Start Free Trial
+                    </button>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold mb-2">Enterprise</h3>
+                        <div class="text-5xl font-bold my-6">
+                            <span class="text-purple-400">Custom</span>
+                        </div>
+                        <p class="text-gray-400 mb-6">For security teams & agencies</p>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span><strong>Everything in Premium</strong></span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-purple-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>On-premise deployment</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-purple-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>SSO/SAML integration</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-purple-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+                            <span>Dedicated support</span>
+                        </li>
+                    </ul>
+                    <a href="mailto:enterprise@trishul.io" class="block w-full text-center bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition">
+                        Contact Sales
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto text-center">
+            <h2 class="text-4xl md:text-5xl font-bold mb-6">
+                Ready to <span class="gradient-text">Automate Your Security?</span>
+            </h2>
+            <p class="text-xl text-gray-400 mb-8">
+                Join hundreds of security researchers using Trishul for bug bounty hunting and enterprise auditing.
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="https://github.com/yourusername/trishul" class="btn-neon text-white text-lg inline-flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    Clone Repository
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto text-center">
+            <div class="flex items-center justify-center space-x-2 mb-4">
+                <span class="text-2xl">🔱</span>
+                <span class="text-lg font-bold gradient-text">TRISHUL</span>
+            </div>
+            <p class="text-gray-400 text-sm mb-4">
+                Open-source autonomous security platform for the modern bug bounty hunter.
+            </p>
+            <p class="text-gray-400 text-sm">© 2026 Project Trishul. Released under MIT License.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

@@ -19,7 +19,16 @@ class AssetManager:
             db_path (str): The path to the SQLite database file. Defaults to 'recon_state.db'.
         """
         self.db_path = db_path
+        self._conn = None
+        if db_path == ":memory:":
+            self._conn = sqlite3.connect(":memory:")
         self._initialize_db()
+
+    def _get_connection(self):
+        """Returns the appropriate database connection."""
+        if self._conn:
+            return self._conn
+        return sqlite3.connect(self.db_path)
 
     def _initialize_db(self):
         """
@@ -27,17 +36,18 @@ class AssetManager:
         if it does not already exist.
         """
         try:
-            # The 'with' context manager safely handles the database connection and
-            # automatically commits the transaction if no exceptions occur.
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS subdomains (
-                        domain TEXT PRIMARY KEY,
-                        first_seen TIMESTAMP,
-                        last_seen TIMESTAMP
-                    )
-                ''')
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS subdomains (
+                    domain TEXT PRIMARY KEY,
+                    first_seen TIMESTAMP,
+                    last_seen TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            if not self._conn:
+                conn.close()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize database: {e}")
             raise
@@ -57,29 +67,30 @@ class AssetManager:
         current_time = datetime.now(timezone.utc)
 
         try:
-            # Using Python's 'with' context manager for the SQLite connection
-            # ensures that commits are handled safely and locks are released.
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                for domain in new_subdomains_list:
-                    # Check if the domain exists in the database
-                    cursor.execute("SELECT domain FROM subdomains WHERE domain = ?", (domain,))
-                    result = cursor.fetchone()
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            for domain in new_subdomains_list:
+                # Check if the domain exists in the database
+                cursor.execute("SELECT domain FROM subdomains WHERE domain = ?", (domain,))
+                result = cursor.fetchone()
 
-                    if result is None:
-                        # Domain does NOT exist: insert it with current timestamp
-                        cursor.execute(
-                            "INSERT INTO subdomains (domain, first_seen, last_seen) VALUES (?, ?, ?)",
-                            (domain, current_time, current_time)
-                        )
-                        new_discoveries.append(domain)
-                    else:
-                        # Domain ALREADY exists: update its last_seen timestamp
-                        cursor.execute(
-                            "UPDATE subdomains SET last_seen = ? WHERE domain = ?",
-                            (current_time, domain)
-                        )
+                if result is None:
+                    # Domain does NOT exist: insert it with current timestamp
+                    cursor.execute(
+                        "INSERT INTO subdomains (domain, first_seen, last_seen) VALUES (?, ?, ?)",
+                        (domain, current_time, current_time)
+                    )
+                    new_discoveries.append(domain)
+                else:
+                    # Domain ALREADY exists: update its last_seen timestamp
+                    cursor.execute(
+                        "UPDATE subdomains SET last_seen = ? WHERE domain = ?",
+                        (current_time, domain)
+                    )
+            conn.commit()
+            if not self._conn:
+                conn.close()
         except sqlite3.Error as e:
             logger.error(f"Database error during diffing: {e}")
             raise

@@ -10,9 +10,19 @@ class ReportWriter:
 
     def generate_report(self, target_domain, vulnerabilities):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_domain = target_domain.replace(".", "_")
+        
+        # SECURITY: Sanitize domain to prevent path traversal
+        # Remove all path separators and suspicious characters
+        safe_domain = "".join(c if c.isalnum() or c in '-_' else '_' for c in target_domain)
         filename = f"HACKERONE_REPORT_{safe_domain}_{timestamp}.md"
-        filepath = os.path.join(self.output_dir, filename)
+        
+        # Ensure file stays within reports directory
+        filepath = os.path.abspath(os.path.join(self.output_dir, filename))
+        output_abs = os.path.abspath(self.output_dir)
+        
+        # Validate the path is within output_dir (prevent path traversal)
+        if not filepath.startswith(output_abs):
+            raise ValueError(f"Path traversal attempt detected: {target_domain}")
 
         report_content = f"# 🐛 BUG BOUNTY SUBMISSION: {target_domain}\n"
         report_content += f"**Date Discovered:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"

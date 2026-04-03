@@ -1,0 +1,96 @@
+MIT License
+
+Copyright (c) 2024 Project Trishul Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+ADDITIONAL TERMS AND CONDITIONS
+================================================================================
+
+LEGAL COMPLIANCE AND AUTHORIZATION REQUIREMENT:
+
+This software is intended for authorized security testing ONLY. By using this
+software, you agree to the following additional terms:
+
+1. AUTHORIZATION REQUIREMENT
+   You MUST have explicit written authorization before using this software to
+   test any computer system, network, or web application. Unauthorized access
+   may violate the Computer Fraud and Abuse Act (CFAA) in the USA, the Computer
+   Misuse Act 1990 in the UK, and similar laws in other jurisdictions, which
+   can result in criminal penalties including imprisonment.
+
+2. PROHIBITED USES
+   You may NOT use this software to:
+   - Test systems without explicit authorization
+   - Exploit vulnerabilities beyond proof-of-concept
+   - Access, modify, or delete data without permission
+   - Cause denial of service or system disruption
+   - Violate bug bounty program rules or applicable laws
+
+3. USER RESPONSIBILITY AND ASSUMPTION OF RISK
+   You assume ALL legal liability and risk associated with using this software.
+   You are solely responsible for ensuring you have proper authorization and
+   comply with all applicable laws and regulations.
+
+4. LIMITATION OF LIABILITY
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, the creators, contributors, and
+   maintainers of this software shall NOT be liable for:
+   - Direct, indirect, incidental, or consequential damages
+   - Legal fees, fines, or penalties resulting from your use of this software
+   - Criminal or civil liability arising from unauthorized access
+   - Violations of bug bounty program terms or applicable laws
+   - Any damages arising from the use or misuse of this software
+
+5. INDEMNIFICATION
+   You agree to indemnify and hold harmless the software creators from any
+   claims, damages, losses, liabilities, and expenses (including legal fees)
+   arising from your use or misuse of this software.
+
+6. NO WARRANTY
+   This software is provided WITHOUT WARRANTY of any kind. The creators make
+   no warranties regarding:
+   - Accuracy of vulnerability detection
+   - Legal compliance in any jurisdiction
+   - Compatibility with bug bounty programs
+   - Absence of false positives or false negatives
+
+7. TERMS OF SERVICE
+   Use of this software is subject to the complete Terms of Service located in
+   the TERMS_OF_SERVICE.md file. By using this software, you agree to those
+   terms.
+
+8. GOVERNING LAW
+   These additional terms shall be governed by and construed in accordance with
+   the laws of the jurisdiction where the user is located.
+
+9. SEVERABILITY
+   If any provision of these additional terms is found to be unenforceable, the
+   remaining provisions shall remain in full force.
+
+10. ACCEPTANCE
+    By using this software, you acknowledge that you have read, understood, and
+    agree to these additional terms in addition to the MIT License above.
+
+IMPORTANT: If you do not agree to these additional terms, DO NOT USE THIS
+SOFTWARE. Using this software without proper authorization may be illegal and
+result in criminal prosecution.
+
+For complete legal terms, see: TERMS_OF_SERVICE.md
+

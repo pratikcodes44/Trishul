@@ -1,15 +1,15 @@
 import requests
 import json
 import logging
+import os
 
 class ReconNotifier:
     def __init__(self, platform="discord"):
         self.platform = platform
-        # Replace this with your ACTUAL Discord Webhook URL
-        self.webhook_url = "https://discord.com/api/webhooks/1479452146041884723/Om0IBygD9EektmNTWKRhdOd8VNBr_jOkH3EAvskqmXFeodSy98iDF03cWG90RU7VjDGa" 
+        self.webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "") 
 
     def send_alert(self, message_list):
-        if not self.webhook_url or self.webhook_url == "YOUR_DISCORD_WEBHOOK_URL_HERE":
+        if not self.webhook_url:
             logging.warning("No valid Discord webhook URL found. Skipping alert.")
             return
 
