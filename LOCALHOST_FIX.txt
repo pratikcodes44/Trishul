@@ -1,0 +1,108 @@
+╔════════════════════════════════════════════════════════════╗
+║  🚨 URGENT FIX: LOCALHOST NOT WORKING                      ║
+╚════════════════════════════════════════════════════════════╝
+
+📋 STEP-BY-STEP SOLUTION (Do this RIGHT NOW):
+
+┌────────────────────────────────────────────────────────────┐
+│ STEP 1: Start API Server                                   │
+└────────────────────────────────────────────────────────────┘
+
+Open Terminal 1 and run:
+
+  cd ~/PratikW/MyWorkspace/Bugbounty
+  uvicorn api_server:app --host 0.0.0.0 --port 8000
+
+You MUST see this output:
+  ✓ INFO: Uvicorn running on http://0.0.0.0:8000
+  ✓ INFO: Application startup complete
+
+KEEP THIS TERMINAL OPEN! Don't close it.
+
+┌────────────────────────────────────────────────────────────┐
+│ STEP 2: Start Dashboard                                    │
+└────────────────────────────────────────────────────────────┘
+
+Open NEW Terminal 2 and run:
+
+  cd ~/PratikW/MyWorkspace/Bugbounty
+  streamlit run ai_dashboard.py
+
+You MUST see this output:
+  ✓ You can now view your Streamlit app in your browser
+  ✓ Local URL: http://localhost:8501
+
+KEEP THIS TERMINAL OPEN! Don't close it.
+
+┌────────────────────────────────────────────────────────────┐
+│ STEP 3: Open in Browser                                    │
+└────────────────────────────────────────────────────────────┘
+
+Open your web browser and go to:
+
+  1. http://localhost:8000/api/docs
+     → Should show OpenAPI documentation
+
+  2. http://localhost:8501
+     → Should show AI Dashboard
+
+IF BOTH WORK: ✅ YOU'RE READY FOR DEMO!
+
+┌────────────────────────────────────────────────────────────┐
+│ 🚨 IF STEP 1 FAILS (API doesn't start)                     │
+└────────────────────────────────────────────────────────────┘
+
+Check if uvicorn is installed:
+  
+  pip3 install uvicorn
+
+Then try again.
+
+┌────────────────────────────────────────────────────────────┐
+│ 🚨 IF STEP 2 FAILS (Dashboard doesn't start)               │
+└────────────────────────────────────────────────────────────┘
+
+Check if streamlit is installed:
+
+  pip3 install streamlit
+
+Then try again.
+
+┌────────────────────────────────────────────────────────────┐
+│ 🚨 IF BROWSER SHOWS "CAN'T REACH"                          │
+└────────────────────────────────────────────────────────────┘
+
+1. Make SURE both terminals are still running (not closed)
+
+2. Check the terminals for error messages
+
+3. Try http://127.0.0.1:8000/api/docs instead of localhost
+
+4. Hard refresh browser: Ctrl + Shift + R
+
+┌────────────────────────────────────────────────────────────┐
+│ 🆘 EMERGENCY BACKUP PLAN                                   │
+└────────────────────────────────────────────────────────────┘
+
+If localhost STILL doesn't work, use this for demo:
+
+  python3 demo_ai.py
+
+This works WITHOUT needing localhost and shows all features!
+
+┌────────────────────────────────────────────────────────────┐
+│ ✅ QUICK TEST                                              │
+└────────────────────────────────────────────────────────────┘
+
+After starting both services, run this in a NEW terminal:
+
+  curl http://localhost:8000/api/v1/health
+
+If you see:
+  {"status":"healthy","version":"2.0.0","ai_enabled":true}
+
+Then it's working! 🎉
+
+╔════════════════════════════════════════════════════════════╗
+║  📞 STILL NOT WORKING? Share the error messages with me    ║
+╚════════════════════════════════════════════════════════════╝
