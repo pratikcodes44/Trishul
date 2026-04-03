@@ -1,19 +1,33 @@
-# 🔱 Project Trishul
+# 🔱 Trishul - AI-Powered Security Platform
 
-> **Autonomous Cybersecurity Platform** - An AI-powered External Attack Surface Management (EASM) and Bug Bounty Hunting Pipeline
+> **Next-Generation AI-First SaaS** - Enterprise Attack Surface Management & Autonomous Bug Bounty Hunting Platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![AI Powered](https://img.shields.io/badge/AI-Powered-blueviolet)](https://github.com/pratikcodes44/Trishul)
+[![FastAPI](https://img.shields.io/badge/FastAPI-SaaS-green)](https://fastapi.tiangolo.com/)
 
 ---
 
-## 🎯 What is Trishul?
+## 🚀 **NEW: AI-First SaaS Platform**
 
-Trishul is a **fully automated security reconnaissance pipeline** that chains together industry-standard tools to discover vulnerabilities at scale. Named after the legendary trident of Lord Shiva, it strikes with precision across three prongs:
+Trishul has evolved into a comprehensive **AI-powered security intelligence platform** designed for the modern bug bounty hunter and enterprise security team. Built for the 48-hour hackathon, we've integrated cutting-edge AI/ML capabilities with enterprise-grade SaaS architecture.
 
-1. **Discovery** - Subdomain enumeration, port scanning, live host detection
-2. **Reconnaissance** - Web crawling, historical URL mining, endpoint mapping  
-3. **Exploitation** - Vulnerability scanning with AI-powered WAF evasion
+### 🤖 **AI Intelligence Engine**
+- **ML-Powered Vulnerability Prediction**: Predict exploit likelihood using tech stack analysis
+- **CVE Correlation**: Automatically match discovered technologies with known vulnerabilities  
+- **Risk Scoring**: AI-driven risk assessment (0-100 scale) with actionable insights
+- **Smart Recommendations**: Context-aware security remediation suggestions
+- **Anomaly Detection**: ML-based change detection and suspicious pattern identification
+
+### 🎯 **What is Trishul?**
+
+Trishul is an **enterprise-grade, AI-powered security platform** that automates the entire bug bounty workflow from reconnaissance to reporting. Named after the legendary trident of Lord Shiva, it now strikes with AI precision across multiple dimensions:
+
+1. **🔍 AI-Powered Discovery** - Intelligent asset enumeration with ML-based prioritization
+2. **🧠 Smart Reconnaissance** - Context-aware scanning with predictive analytics
+3. **⚡ Automated Exploitation** - AI-guided vulnerability detection with CVE matching
+4. **📊 Intelligent Reporting** - Auto-generated executive summaries with business impact
 
 ---
 
@@ -31,6 +45,16 @@ Trishul is a **fully automated security reconnaissance pipeline** that chains to
 │  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘               │
 │         │                   │                    │                       │
 │         └───────────────────┼────────────────────┘                       │
+│                             ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                 🤖 AI INTELLIGENCE LAYER (NEW!)                 │    │
+│  │  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌────────────────┐   │    │
+│  │  │   ML    │  │   CVE   │  │   Risk   │  │   Predictive   │   │    │
+│  │  │ Vuln    │→ │Correlat-│→ │ Scoring  │→ │   Analytics    │   │    │
+│  │  │Predictor│  │  ion    │  │  Engine  │  │                │   │    │
+│  │  └─────────┘  └─────────┘  └──────────┘  └────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                             │                                            │
 │                             ▼                                            │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │                    RECONNAISSANCE PIPELINE                       │    │
@@ -65,9 +89,9 @@ Trishul is a **fully automated security reconnaissance pipeline** that chains to
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │                       OUTPUT LAYER                               │    │
 │  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌───────────┐  │    │
-│  │  │  Discord   │  │   Jira     │  │ HackerOne  │  │ Dashboard │  │    │
-│  │  │  Alerts    │  │  Tickets   │  │  Reports   │  │ (Streamlit│  │    │
-│  │  │            │  │  (Mode 1)  │  │  (Mode 2)  │  │           │  │    │
+│  │  │  Discord   │  │   Jira     │  │ HackerOne  │  │ AI Dash   │  │    │
+│  │  │  Alerts    │  │  Tickets   │  │  Reports   │  │ + API     │  │    │
+│  │  │            │  │  (Mode 1)  │  │  (Mode 2)  │  │ (SaaS)    │  │    │
 │  │  └────────────┘  └────────────┘  └────────────┘  └───────────┘  │    │
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                                                          │
@@ -78,6 +102,25 @@ Trishul is a **fully automated security reconnaissance pipeline** that chains to
 
 ## ⚡ Features
 
+### 🤖 **AI & Machine Learning** (NEW!)
+| Feature | Description |
+|---------|-------------|
+| **AI Vulnerability Predictor** | ML model predicts exploit likelihood from tech stack fingerprinting |
+| **CVE Auto-Correlation** | Matches discovered technologies with known CVEs from NVD database |
+| **Intelligent Risk Scoring** | 0-100 AI-driven risk assessment with severity classification |
+| **Smart Recommendations** | Context-aware remediation suggestions based on findings |
+| **Predictive Analytics** | Forecast vulnerability trends and attack surface growth |
+
+### 🎯 **Enterprise SaaS Platform** (NEW!)
+| Feature | Description |
+|---------|-------------|
+| **RESTful API** | FastAPI-based with OpenAPI docs, JWT auth, and rate limiting |
+| **Multi-Tenant Architecture** | Campaign manager for multiple bug bounty programs |
+| **Real-time AI Dashboard** | Interactive Streamlit dashboard with live risk visualization |
+| **Batch Analysis** | Analyze multiple assets simultaneously with aggregate metrics |
+| **Usage Analytics** | Track API calls, storage, scan metrics per user/tenant |
+
+### 🔧 **Core Security Features**
 | Feature | Description |
 |---------|-------------|
 | **Dual Mode Operation** | Enterprise security auditor OR autonomous bug bounty hunter |
@@ -114,19 +157,57 @@ go install -v github.com/lc/gau/v2/cmd/gau@latest
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/project-trishul.git
-cd project-trishul
+git clone https://github.com/pratikcodes44/Trishul.git
+cd Trishul
 
-# Install Python dependencies
+# Quick setup (installs all dependencies)
+./quickstart.sh
+
+# OR manual installation
 pip install -r requirements.txt
-
-# Configure environment
 cp .env.example .env
-# Edit .env with your Discord webhook URL
+# Edit .env with your API keys
 ```
 
-### Usage
+### 🎯 Usage - AI-First SaaS Platform
 
+#### 1. Launch AI Dashboard (Recommended for Demo)
+```bash
+streamlit run ai_dashboard.py
+```
+Access at: `http://localhost:8501`
+
+**Features:**
+- 🤖 Real-time AI vulnerability analysis
+- 📊 Interactive risk visualization  
+- 🎯 Predictive analytics dashboard
+- 🔴 Critical security alerts
+
+#### 2. Start API Server
+```bash
+python3 api_server.py
+```
+Access API docs at: `http://localhost:8000/api/docs`
+
+**API Endpoints:**
+```bash
+# Register/Login
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+
+# AI Analysis
+POST /api/v1/ai/analyze-asset
+POST /api/v1/ai/batch-analyze
+
+# Scanning
+POST /api/v1/scans/start
+GET  /api/v1/scans/{scan_id}
+
+# Reports
+GET  /api/v1/reports/generate
+```
+
+#### 3. Traditional CLI Mode
 ```bash
 # Mode 2: Autonomous Bug Bounty Hunter (random target from HackerOne/Bugcrowd)
 python main.py
