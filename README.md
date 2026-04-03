@@ -33,7 +33,34 @@ Trishul automates the entire bug bounty workflow from reconnaissance to reportin
 
 ## 🏗️ Architecture
 
-Trishul runs a 10-phase pipeline: OSINT → Subdomains → Takeover checks → Port scan → Live host probing → Crawling → API discovery → Historical mining → IDOR testing → Nuclei vulnerability scanning, with AI guidance and campaign tracking across all phases.
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            PROJECT TRISHUL                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│  TARGET INTAKE                                                          │
+│  • Auto bounty target (HackerOne/Bugcrowd via BountyScout)             │
+│  • Manual target (--domain / --demo)                                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│  SAFETY + CONTROL LAYER                                                 │
+│  • Legal consent • Scope validation • Read-only defaults               │
+│  • Audit logging • Phase watchdog (stuck detection)                    │
+├──────────────────────────────────────────────────────────────────────────┤
+│  AI + CAMPAIGN LAYER                                                    │
+│  • Local Mistral (Ollama) phase guidance and risk summaries            │
+│  • Campaign manager + priority scoring + persistent tracking           │
+├──────────────────────────────────────────────────────────────────────────┤
+│  10-PHASE RECON & TEST PIPELINE                                         │
+│  1) OSINT → 2) Subdomains → 3) Takeover checks → 4) Ports             │
+│  5) Live hosts → 6) Crawl → 7) GraphQL/API → 8) Historical URLs       │
+│  9) IDOR testing → 10) Nuclei scan (CDN-safe throttling supported)     │
+├──────────────────────────────────────────────────────────────────────────┤
+│  OUTPUTS + SURFACES                                                     │
+│  • Bug bounty reports (reports/)                                       │
+│  • Gmail lifecycle notifications (found/start/stuck/interrupted/done)  │
+│  • API server + dashboard                                               │
+│  • SQLite state (assets/campaigns/audit)                               │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -104,6 +131,18 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your API keys
 ```
+
+### Automated Tests
+
+```bash
+# Run all automated tests
+python3 -m pytest
+
+# Fast compile-only sanity check
+python3 -m py_compile main.py dashboard.py report_writer.py nuclei_runner.py ai_engine.py campaign_manager.py gmail_notifier.py
+```
+
+GitHub Actions CI runs these checks automatically on every push and pull request.
 
 ### Local Mistral AI (Recommended)
 
