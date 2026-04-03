@@ -123,7 +123,7 @@ Trishul is an **enterprise-grade, AI-powered security platform** that automates 
 ### 🔧 **Core Security Features**
 | Feature | Description |
 |---------|-------------|
-| **Dual Mode Operation** | Enterprise security auditor OR autonomous bug bounty hunter |
+
 | **AI-Powered WAF Evasion** | Local LLM (Ollama) generates evasion tactics when WAF blocks detected |
 | **State Diffing** | SQLite-based tracking - only scans NEW subdomains |
 | **Scope Enforcement** | Built-in denylist blocks third-party SaaS (AWS, Heroku, etc.) |
