@@ -132,7 +132,13 @@ def demo_campaign_manager():
     print("🎯 DEMO 3: Multi-Campaign Management")
     print("="*60 + "\n")
     
-    manager = CampaignManager(db_path=":memory:")  # In-memory DB for demo
+    import os
+    # Use temp file-based DB for demo
+    db_file = 'demo_campaigns.db'
+    if os.path.exists(db_file):
+        os.remove(db_file)
+    
+    manager = CampaignManager(db_path=db_file)  # File-based DB for demo
     
     # Create sample campaigns
     campaigns_data = [
@@ -201,6 +207,10 @@ def demo_campaign_manager():
     print(f"Critical Issues: {stats['critical_vulnerabilities']}")
     print(f"Total Bounty Earned: ${stats['total_bounty_earned']:.2f}")
     print(f"Top Priority: {stats['top_priority_campaign']} ({stats['top_priority_score']:.1f}/100)")
+    
+    # Cleanup
+    if os.path.exists(db_file):
+        os.remove(db_file)
 
 def main():
     print_banner()
