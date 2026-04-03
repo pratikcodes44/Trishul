@@ -1,6 +1,6 @@
-# 🔱 Trishul - AI-Powered Security Platform
+# 🔱 Trishul - AI-Powered Bug Bounty Platform
 
-> **Next-Generation AI-First SaaS** - Enterprise Attack Surface Management & Autonomous Bug Bounty Hunting Platform
+> **AI-first autonomous bug bounty platform** with local Mistral guidance, campaign tracking, and full recon-to-report automation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -9,9 +9,9 @@
 
 ---
 
-## 🚀 **NEW: AI-First SaaS Platform**
+## 🚀 Platform Overview
 
-Trishul has evolved into a comprehensive **AI-powered security intelligence platform** designed for the modern bug bounty hunter and enterprise security team. Built for the 48-hour hackathon, we've integrated cutting-edge AI/ML capabilities with enterprise-grade SaaS architecture.
+Trishul is a comprehensive **AI-powered bug bounty automation platform** built for high-signal recon, safer scan execution, and fast reporting.
 
 ### 🤖 **AI Intelligence Engine**
 - **ML-Powered Vulnerability Prediction**: Predict exploit likelihood using tech stack analysis
@@ -20,9 +20,9 @@ Trishul has evolved into a comprehensive **AI-powered security intelligence plat
 - **Smart Recommendations**: Context-aware security remediation suggestions
 - **Anomaly Detection**: ML-based change detection and suspicious pattern identification
 
-### 🎯 **What is Trishul?**
+### 🎯 What is Trishul?
 
-Trishul is an **enterprise-grade, AI-powered security platform** that automates the entire bug bounty workflow from reconnaissance to reporting. Named after the legendary trident of Lord Shiva, it now strikes with AI precision across multiple dimensions:
+Trishul automates the entire bug bounty workflow from reconnaissance to reporting:
 
 1. **🔍 AI-Powered Discovery** - Intelligent asset enumeration with ML-based prioritization
 2. **🧠 Smart Reconnaissance** - Context-aware scanning with predictive analytics
@@ -33,70 +33,7 @@ Trishul is an **enterprise-grade, AI-powered security platform** that automates 
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         PROJECT TRISHUL                                  │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
-│  │  Mode 1:     │    │  Mode 2:     │    │  Target      │               │
-│  │  Enterprise  │    │  Bug Bounty  │    │  Acquisition │               │
-│  │  Auditor     │    │  Hunter      │    │  (Manual)    │               │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘               │
-│         │                   │                    │                       │
-│         └───────────────────┼────────────────────┘                       │
-│                             ▼                                            │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                 🤖 AI INTELLIGENCE LAYER (NEW!)                 │    │
-│  │  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌────────────────┐   │    │
-│  │  │   ML    │  │   CVE   │  │   Risk   │  │   Predictive   │   │    │
-│  │  │ Vuln    │→ │Correlat-│→ │ Scoring  │→ │   Analytics    │   │    │
-│  │  │Predictor│  │  ion    │  │  Engine  │  │                │   │    │
-│  │  └─────────┘  └─────────┘  └──────────┘  └────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                             │                                            │
-│                             ▼                                            │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                    RECONNAISSANCE PIPELINE                       │    │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────┐ │    │
-│  │  │Subfinder│→ │  Naabu  │→ │  HTTPX  │→ │ Katana  │→ │  GAU   │ │    │
-│  │  │(Subs)   │  │(Ports)  │  │(Probe)  │  │(Crawl)  │  │(Hist.) │ │    │
-│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘  └────────┘ │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                             │                                            │
-│                             ▼                                            │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                     STATE MANAGEMENT                             │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │    │
-│  │  │ ScopeChecker │  │ AssetManager │  │ SQLite State DB      │   │    │
-│  │  │ (Denylist)   │  │ (Diff Engine)│  │ (New vs Existing)    │   │    │
-│  │  └──────────────┘  └──────────────┘  └──────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                             │                                            │
-│                             ▼                                            │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                    VULNERABILITY SCANNER                         │    │
-│  │  ┌──────────────────────────────────────────────────────────┐   │    │
-│  │  │                      NUCLEI                               │   │    │
-│  │  │  ┌─────────────┐    ┌─────────────────────────────────┐  │   │    │
-│  │  │  │ Fast Scan   │ →  │ WAF Detected? → AI Evasion Mode │  │   │    │
-│  │  │  │ (Aggressive)│    │ (Ollama LLM generates flags)    │  │   │    │
-│  │  │  └─────────────┘    └─────────────────────────────────┘  │   │    │
-│  │  └──────────────────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                             │                                            │
-│                             ▼                                            │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                       OUTPUT LAYER                               │    │
-│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌───────────┐  │    │
-│  │  │  Discord   │  │   Jira     │  │ HackerOne  │  │ AI Dash   │  │    │
-│  │  │  Alerts    │  │  Tickets   │  │  Reports   │  │ + API     │  │    │
-│  │  │            │  │  (Mode 1)  │  │  (Mode 2)  │  │ (SaaS)    │  │    │
-│  │  └────────────┘  └────────────┘  └────────────┘  └───────────┘  │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+Trishul runs a 10-phase pipeline: OSINT → Subdomains → Takeover checks → Port scan → Live host probing → Crawling → API discovery → Historical mining → IDOR testing → Nuclei vulnerability scanning, with AI guidance and campaign tracking across all phases.
 
 ---
 
@@ -111,7 +48,7 @@ Trishul is an **enterprise-grade, AI-powered security platform** that automates 
 | **Smart Recommendations** | Context-aware remediation suggestions based on findings |
 | **Predictive Analytics** | Forecast vulnerability trends and attack surface growth |
 
-### 🎯 **Enterprise SaaS Platform** (NEW!)
+### 🎯 **Platform Services**
 | Feature | Description |
 |---------|-------------|
 | **RESTful API** | FastAPI-based with OpenAPI docs, JWT auth, and rate limiting |
@@ -123,12 +60,11 @@ Trishul is an **enterprise-grade, AI-powered security platform** that automates 
 ### 🔧 **Core Security Features**
 | Feature | Description |
 |---------|-------------|
-
+| **Single Bug Bounty Mode** | Autonomous bug bounty hunting workflow |
 | **AI-Powered WAF Evasion** | Local LLM (Ollama) generates evasion tactics when WAF blocks detected |
 | **State Diffing** | SQLite-based tracking - only scans NEW subdomains |
 | **Scope Enforcement** | Built-in denylist blocks third-party SaaS (AWS, Heroku, etc.) |
-| **Compliance Mapping** | Enterprise mode maps vulnerabilities to SOC2/ISO-27001 controls |
-| **Real-time Alerts** | Discord/Telegram notifications on vulnerability discovery |
+| **Real-time Alerts** | Gmail notifications on target found, start, completion, interruption, and stuck phases |
 | **Bounty Estimation** | Auto-estimates potential payout based on severity |
 | **CI/CD Integration** | Exit code 1 on critical vulns to halt deployments |
 
@@ -168,6 +104,34 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your API keys
 ```
+
+### Local Mistral AI (Recommended)
+
+Trishul now supports **local Mistral** through Ollama for project-wide AI assistance.
+
+```bash
+# Ensure Ollama is running
+ollama serve
+
+# Pull Mistral model (if needed)
+ollama pull mistral:latest
+
+# Verify model is present
+ollama list | grep mistral
+```
+
+Set these in `.env`:
+
+```bash
+LOCAL_AI_API_URL=http://127.0.0.1:11434/api/generate
+LOCAL_AI_MODEL=mistral:latest
+LOCAL_AI_TIMEOUT=20
+```
+
+Notes:
+- `ai_engine.py` uses local Mistral for report summaries and phase guidance when available.
+- If local AI is unavailable, Trishul falls back to deterministic built-in summaries.
+- Nuclei WAF-evasion also uses local model via `OLLAMA_API_URL` and `OLLAMA_MODEL`.
 
 ### 🎯 Usage - AI-First SaaS Platform
 
@@ -209,17 +173,17 @@ GET  /api/v1/reports/generate
 
 #### 3. Traditional CLI Mode
 ```bash
-# Mode 2: Autonomous Bug Bounty Hunter (random target from HackerOne/Bugcrowd)
+# Auto-select bug bounty target from HackerOne/Bugcrowd
 python main.py
 
-# Mode 1: Enterprise Security Audit (specific target)
-python main.py -d staging.yourcompany.com -m 1
+# Scan a specific target
+python main.py -d staging.yourcompany.com
 
 # CLI flags for automation
-python main.py -d target.com -m 2 -y  # Auto-authorize, no prompts
+python main.py -d target.com -y  # Auto-authorize, no prompts
 
 # With authenticated scanning (session cookie)
-python main.py -d app.company.com -m 1 -c "session=abc123"
+python main.py -d app.company.com -c "session=abc123"
 ```
 
 ### Demo Mode (Local Testing)
@@ -229,7 +193,7 @@ python main.py -d app.company.com -m 1 -c "session=abc123"
 python vulnerable_arena.py
 
 # Terminal 2: Run Trishul against local target
-python main.py -d 127.0.0.1 -m 1 -y
+python main.py -d 127.0.0.1 -y
 ```
 
 ---
@@ -259,8 +223,8 @@ project-trishul/
 ├── nuclei_runner.py        # Vulnerability scanner with AI WAF evasion
 ├── asset_manager.py        # SQLite state management for diffing
 ├── report_writer.py        # HackerOne-style report generator
-├── ticket_writer.py        # Jira-style ticket generator
 ├── discord_notifier.py     # Rich Discord embed notifications
+├── gmail_notifier.py       # Gmail notification lifecycle alerts
 ├── recon_notifier.py       # Multi-platform notification system
 ├── notifier.py             # Simple Discord/Telegram alerts
 ├── update_templates.py     # Nuclei template auto-updater (cron)

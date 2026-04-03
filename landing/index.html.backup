@@ -209,7 +209,7 @@
                     <span class="text-gray-500 text-sm ml-4">~/trishul</span>
                 </div>
                 <div class="space-y-2 text-sm">
-                    <div><span class="text-green-400">$</span> <span class="text-blue-400">python3 main.py</span> <span class="text-gray-500">-d target.com -m 2 -y</span></div>
+                    <div><span class="text-green-400">$</span> <span class="text-blue-400">python3 main.py</span> <span class="text-gray-500">-d target.com -y</span></div>
                     <div class="text-gray-400">🔱 TRISHUL v1.0 - Autonomous Security Platform</div>
                     <div class="text-gray-400">🔍 Phase 1: OSINT Reconnaissance... <span class="text-green-400">✓</span></div>
                     <div class="text-gray-400">🔍 Phase 2: Subdomain Discovery... <span class="text-yellow-400">⚡ 247 found</span></div>
@@ -271,8 +271,8 @@
                 
                 <div class="feature-card">
                     <div class="text-4xl mb-4">🎯</div>
-                    <h3 class="text-xl font-bold mb-3 text-purple-400">Dual Operating Modes</h3>
-                    <p class="text-gray-400"><strong>Mode 1:</strong> Enterprise auditing with Jira tickets<br><strong>Mode 2:</strong> Autonomous bug bounty with HackerOne reports</p>
+                    <h3 class="text-xl font-bold mb-3 text-purple-400">Autonomous Bug Bounty Mode</h3>
+                    <p class="text-gray-400">Single-mode pipeline focused on bug bounty recon and reporting with safe defaults.</p>
                 </div>
                 
                 <div class="feature-card">

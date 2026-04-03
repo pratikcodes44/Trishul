@@ -26,7 +26,7 @@ class ReportWriter:
 
         report_content = f"# 🐛 BUG BOUNTY SUBMISSION: {target_domain}\n"
         report_content += f"**Date Discovered:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        report_content += f"**Discovered By:** Project Trishul (Autonomous Mode 2)\n\n"
+        report_content += f"**Discovered By:** Project Trishul (Autonomous Bug Bounty Pipeline)\n\n"
         report_content += "---\n\n"
 
         for vuln in vulnerabilities:
@@ -39,7 +39,7 @@ class ReportWriter:
                 url = data.get("matched-at", "Unknown URL")
                 desc = info.get("description", "No description provided.")
                 
-                # 🚀 MODE 2 UPGRADE: Automated Bounty Estimator 🚀
+                # Automated bounty estimator
                 bounty_estimate = "$0 (Informational)"
                 if severity == "CRITICAL": bounty_estimate = "$3,000 - $10,000+"
                 elif severity == "HIGH": bounty_estimate = "$1,000 - $3,000"

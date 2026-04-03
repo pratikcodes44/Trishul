@@ -17,7 +17,6 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./reports:/app/reports
-      - ./enterprise_tickets:/app/enterprise_tickets
     networks:
       - trishul-net
     stdin_open: true
@@ -43,7 +42,6 @@ services:
     volumes:
       - ./recon_state.db:/app/recon_state.db:ro
       - ./reports:/app/reports:ro
-      - ./enterprise_tickets:/app/enterprise_tickets:ro
     networks:
       - trishul-net
 

@@ -19,15 +19,8 @@ Project Trishul is a sophisticated AI-powered external attack surface management
 - **Efficiency**: Skips previously scanned assets, reducing noise and scan time
 - **Scalability**: Handles thousands of subdomains with minimal overhead
 
-### 3. Dual-Mode Operation Architecture
+### 3. Autonomous Bug Bounty Operation
 
-#### Enterprise Mode (Mode 1)
-- SOC2/ISO27001 compliance mapping
-- Jira-style ticket generation for remediation
-- Integration with internal CI/CD pipelines
-- Authenticated scanning with session cookies
-
-#### Bug Bounty Mode (Mode 2)
 - Random target selection from verified bounty programs
 - HackerOne/Bugcrowd API integration
 - Automated report generation with CVE formatting
@@ -64,14 +57,14 @@ Project Trishul is a sophisticated AI-powered external attack surface management
 | Scope Validation | ✅ Multi-pattern (CIDR, wildcards) | ⚠️ Regex only |
 | Real-time UI | ✅ Rich animations (60fps) | ❌ Static console output |
 | Compliance Mapping | ✅ SOC2/ISO27001 ready | ❌ Manual process |
-| Multi-platform Support | ✅ Enterprise + Bounty | ⚠️ Specialized tools |
+| Multi-platform Support | ✅ Bug bounty focused orchestration | ⚠️ Specialized tools |
 | Audit Logging | ✅ Structured JSONL | ⚠️ Basic file logging |
 
 ## Competitive Analysis
 
 ### Against Recon-ng
 **Superior**: Modern UI, AI features, production deployment
-**Unique**: Legal compliance framework, dual-mode operation
+**Unique**: Legal compliance framework with autonomous orchestration
 
 ### Against Nuclei Framework Alone
 **Added Value**: Orchestrates complete pipeline, provides context awareness
@@ -100,8 +93,8 @@ Project Trishul is a sophisticated AI-powered external attack surface management
 
 ### For Security Teams
 1. Implement scope validation for all scans
-2. Use enterprise mode for internal audits
-3. Integrate with existing ticketing systems
+2. Run in read-only mode where possible
+3. Integrate findings with your internal triage workflows
 4. Monitor audit logs for compliance
 
 ### For Bounty Hunters
@@ -114,7 +107,7 @@ Project Trishul is a sophisticated AI-powered external attack surface management
 
 Trishul represents a significant advancement in automated security testing, combining the power of industry-standard tools with intelligent orchestration and legal safeguards. The AI-assisted WAF evasion system is particularly innovative, addressing a common pain point in bounty hunting while maintaining ethical testing practices.
 
-The dual-mode architecture makes it suitable for both enterprise environments requiring compliance documentation and bounty hunters needing efficient target discovery. The SQLite-based state management efficiently handles large-scale reconnaissance without the memory overhead of traditional approaches.
+Its bug-bounty-first architecture provides efficient target discovery while preserving strong legal and safety controls. The SQLite-based state management efficiently handles large-scale reconnaissance without the memory overhead of traditional approaches.
 
 **Overall Rating**: 9/10 - Industry-leading innovation with strong production readiness
 

@@ -59,14 +59,8 @@ def get_asset_count():
     except:
         return 0
 
-def get_ticket_count():
-    # Counts how many Jira tickets Mode 1 has generated
-    if os.path.exists("enterprise_tickets"):
-        return len(glob.glob("enterprise_tickets/*.md"))
-    return 0
-
 def get_report_count():
-    # Counts how many HackerOne reports Mode 2 has generated
+    # Counts generated bug bounty reports
     if os.path.exists("reports"):
         return len(glob.glob("reports/*.md"))
     return 0
@@ -85,11 +79,11 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric(label="Total Tracked Assets", value=get_asset_count(), delta="Live Database")
 with col2:
-    st.metric(label="Enterprise Tickets (Mode 1)", value=get_ticket_count(), delta="Pending Dev Fixes")
+    st.metric(label="Bounty Reports", value=get_report_count(), delta="Ready to Submit")
 with col3:
-    st.metric(label="Bounty Reports (Mode 2)", value=get_report_count(), delta="Ready to Submit")
-with col4:
     st.metric(label="System Status", value="ONLINE", delta="Arch Linux Core")
+with col4:
+    st.metric(label="Pipeline Mode", value="Bug Bounty", delta="Single Mode")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -129,4 +123,4 @@ with col_right:
     st.markdown("**Active Modules:** `Subfinder` `Naabu` `HTTPX` `Katana` `Nuclei`")
 
 st.markdown("---")
-st.caption("Project Trishul | Built for Hackathon | Dual-Mode Architecture: Enterprise & Hacker")
+st.caption("Project Trishul | Built for Hackathon | Autonomous Bug Bounty Platform")

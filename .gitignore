@@ -24,7 +24,6 @@ ENV/
 
 # Generated outputs
 reports/
-enterprise_tickets/
 live_targets.txt
 nuclei_results.json
 maintenance.log

@@ -49,7 +49,7 @@ Use environment variables via `.env` (see `.env.example`).
 python vulnerable_arena.py
 
 # In another terminal, run against localhost
-python main.py -d 127.0.0.1 -m 1 -y
+python main.py -d 127.0.0.1 -y
 ```
 
 ## Questions?

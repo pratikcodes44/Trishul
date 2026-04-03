@@ -48,8 +48,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY .env.example ./
 
-# Create output directories
-RUN mkdir -p reports enterprise_tickets
+# Create output directory
+RUN mkdir -p reports
 
 # Update Nuclei templates
 RUN nuclei -ut || true
