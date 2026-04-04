@@ -1,0 +1,154 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║           🔱 TRISHUL - STARTUP COMMANDS GUIDE 🔱                         ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 OPTION 1: USING STARTUP SCRIPTS (Easiest)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TERMINAL 1 (Backend):
+$ cd /home/manthan/Projects/Trishul
+$ ./start_backend.sh
+
+TERMINAL 2 (Frontend):
+$ cd /home/manthan/Projects/Trishul
+$ ./start_frontend.sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 OPTION 2: MANUAL COMMANDS (Step by step)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔷 TERMINAL 1 - Backend (API Server):
+──────────────────────────────────────────────────────────────────────────
+
+cd /home/manthan/Projects/Trishul
+source venv/bin/activate
+python api_server.py
+
+✓ Backend API: http://localhost:8000
+✓ API Docs: http://localhost:8000/api/docs
+
+──────────────────────────────────────────────────────────────────────────
+
+🔷 TERMINAL 2 - Frontend (Unified Next.js UI):
+──────────────────────────────────────────────────────────────────────────
+
+cd /home/manthan/Projects/Trishul/frontend
+npm run dev
+
+✓ Frontend UI: http://localhost:3000
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 OPTION 3: FRONTEND + API (Recommended)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔷 TERMINAL 1 - Backend (API Server):
+──────────────────────────────────────────────────────────────────────────
+
+cd /home/manthan/Projects/Trishul
+source venv/bin/activate
+python api_server.py
+
+──────────────────────────────────────────────────────────────────────────
+
+🔷 TERMINAL 2 - Frontend (Next.js UI):
+──────────────────────────────────────────────────────────────────────────
+
+cd /home/manthan/Projects/Trishul/frontend
+npm run dev
+
+✓ Frontend UI: http://localhost:3000
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 RECOMMENDED SETUP FOR FULL EXPERIENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run BOTH in separate terminals:
+
+🔷 TERMINAL 1 - API Server (Backend):
+cd /home/manthan/Projects/Trishul && source venv/bin/activate && python api_server.py
+
+🔷 TERMINAL 2 - Modern UI (Frontend):
+cd /home/manthan/Projects/Trishul/frontend && npm run dev
+
+Then access:
+• Modern UI: http://localhost:3000 (Main interface)
+• API Docs: http://localhost:8000/api/docs (REST API)
+• Frontend Pages: Landing, Operations Dashboard, Reports/Analytics
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ QUICK ONE-LINERS (Copy & Paste)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Backend API (Terminal 1)
+cd /home/manthan/Projects/Trishul && ./start_backend.sh
+
+# Frontend UI (Terminal 2)
+cd /home/manthan/Projects/Trishul && ./start_frontend.sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 FIRST TIME SETUP (Frontend Only - If Not Done)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If you haven't installed frontend dependencies yet:
+
+cd /home/manthan/Projects/Trishul/frontend
+npm install
+npm run dev
+
+(The start_frontend.sh script handles this automatically)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎮 WHAT EACH COMPONENT DOES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔹 Backend API (api_server.py):
+   • FastAPI REST API server
+   • Handles scan requests
+   • JWT authentication
+   • WebSocket for real-time updates
+   • OpenAPI documentation
+
+🔹 Frontend UI (Next.js):
+   • Unified three-page application
+   • Dynamic attack-step wizard
+   • Real-time operation stream and findings
+   • Reports with KPI strip + charts + table actions
+   • Responsive design
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛑 HOW TO STOP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In each terminal, press: Ctrl + C
+
+To stop:
+1. Press Ctrl + C in Terminal 1 (Backend)
+2. Press Ctrl + C in Terminal 2 (Frontend)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ "Port already in use" error:
+   • Kill the process: lsof -ti:8000 | xargs kill -9
+   • Or use different port in config
+
+❌ "Module not found" error:
+   • Make sure venv is activated: source venv/bin/activate
+   • Reinstall: pip install -r requirements.txt
+
+❌ Frontend won't start:
+   • Delete node_modules: rm -rf node_modules .next
+   • Reinstall: npm install
+
+❌ "command not found: npm":
+   • Install Node.js: https://nodejs.org/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ READY TO LAUNCH!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Just copy and paste the commands above in separate terminals!
+
+🔱 Happy Hacking!

@@ -171,17 +171,18 @@ cp .env.example .env
 
 ### 🎯 Usage - AI-First SaaS Platform
 
-#### 1. Launch AI Dashboard (Recommended for Demo)
+#### 1. Launch Unified Frontend (Recommended for Demo)
 ```bash
-streamlit run ai_dashboard.py
+cd frontend
+npm install
+npm run dev
 ```
-Access at: `http://localhost:8501`
+Access at: `http://localhost:3000`
 
-**Features:**
-- 🤖 Real-time AI vulnerability analysis
-- 📊 Interactive risk visualization  
-- 🎯 Predictive analytics dashboard
-- 🔴 Critical security alerts
+**Pages:**
+- Landing
+- Operations Dashboard
+- Reports/Analytics
 
 #### 2. Start API Server
 ```bash
@@ -234,12 +235,12 @@ python main.py -d 127.0.0.1 -m 1 -y
 
 ---
 
-## 📊 Dashboard
+## 📊 Frontend
 
-Launch the cyberpunk-themed command center:
+Unified frontend is available in:
 
 ```bash
-streamlit run dashboard.py
+frontend/
 ```
 
 ---
@@ -265,7 +266,7 @@ project-trishul/
 ├── notifier.py             # Simple Discord/Telegram alerts
 ├── update_templates.py     # Nuclei template auto-updater (cron)
 ├── vulnerable_arena.py     # Flask test server with intentional vulns
-├── dashboard.py            # Streamlit monitoring dashboard
+├── frontend/               # Unified Next.js frontend (Landing/Operations/Reports)
 ├── requirements.txt        # Python dependencies
 ├── .env.example            # Environment variable template
 └── LICENSE                 # MIT License

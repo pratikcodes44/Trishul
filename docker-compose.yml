@@ -33,17 +33,15 @@ services:
     networks:
       - trishul-net
 
-  # Streamlit Dashboard
+  # Unified Next.js Frontend
   dashboard:
     build: .
     container_name: trishul-dashboard
-    command: ["streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    command: ["sh", "-lc", "cd frontend && npm install && npm run dev -- --port 3000 --hostname 0.0.0.0"]
     ports:
-      - "8501:8501"
+      - "3000:3000"
     volumes:
-      - ./recon_state.db:/app/recon_state.db:ro
-      - ./reports:/app/reports:ro
-      - ./enterprise_tickets:/app/enterprise_tickets:ro
+      - ./:/app
     networks:
       - trishul-net
 

@@ -233,8 +233,8 @@ def main():
     print("""
 🚀 Next Steps:
     
-1. Launch AI Dashboard:
-   streamlit run ai_dashboard.py
+1. Launch Unified Frontend:
+   cd frontend && npm run dev
    
 2. Start API Server:
    python3 api_server.py
