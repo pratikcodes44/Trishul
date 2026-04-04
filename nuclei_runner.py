@@ -6,6 +6,7 @@ import os
 import time
 import re
 import threading
+from adaptive_rate_limiter import create_adaptive_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class NucleiRunner:
         self.eta_seconds = 0
         self.current_template = ""
         self.is_scanning = False
+        self.adaptive_limiter = None
 
     def ask_ai_for_evasion(self):
         """Reaches out to the local LLM to generate WAF bypass rate-limiting flags."""
