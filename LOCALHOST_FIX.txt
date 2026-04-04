@@ -20,17 +20,18 @@ You MUST see this output:
 KEEP THIS TERMINAL OPEN! Don't close it.
 
 ┌────────────────────────────────────────────────────────────┐
-│ STEP 2: Start Dashboard                                    │
+│ STEP 2: Start Frontend                                     │
 └────────────────────────────────────────────────────────────┘
 
 Open NEW Terminal 2 and run:
 
-  cd ~/PratikW/MyWorkspace/Bugbounty
-  streamlit run ai_dashboard.py
+  cd ~/PratikW/MyWorkspace/Bugbounty/frontend
+  npm install
+  npm run dev
 
 You MUST see this output:
-  ✓ You can now view your Streamlit app in your browser
-  ✓ Local URL: http://localhost:8501
+  ✓ Frontend running
+  ✓ Local URL: http://localhost:3000
 
 KEEP THIS TERMINAL OPEN! Don't close it.
 
@@ -43,8 +44,8 @@ Open your web browser and go to:
   1. http://localhost:8000/api/docs
      → Should show OpenAPI documentation
 
-  2. http://localhost:8501
-     → Should show AI Dashboard
+  2. http://localhost:3000
+     → Should show unified frontend
 
 IF BOTH WORK: ✅ YOU'RE READY FOR DEMO!
 
@@ -59,12 +60,13 @@ Check if uvicorn is installed:
 Then try again.
 
 ┌────────────────────────────────────────────────────────────┐
-│ 🚨 IF STEP 2 FAILS (Dashboard doesn't start)               │
+│ 🚨 IF STEP 2 FAILS (Frontend doesn't start)                │
 └────────────────────────────────────────────────────────────┘
 
-Check if streamlit is installed:
+Check if Node.js and npm are installed:
 
-  pip3 install streamlit
+  node --version
+  npm --version
 
 Then try again.
 
