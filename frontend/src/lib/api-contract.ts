@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
   analyzeAsset: "/api/v1/ai/analyze-asset",
   batchAnalyze: "/api/v1/ai/batch-analyze",
   reports: "/api/v1/reports/generate",
+  reportsDownload: (scanId: string) => `/api/v1/reports/download/${scanId}`,
   reportsAnalytics: "/api/v1/reports/analytics",
   operationsOverview: "/api/v1/operations/overview",
   stats: "/api/v1/stats",
@@ -147,6 +148,7 @@ export interface ReportsResponse {
   executive_summary: string;
   download_url: string;
   generated_at: string;
+  filename?: string;
 }
 
 export interface StatsResponse {

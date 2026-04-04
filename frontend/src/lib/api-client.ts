@@ -16,7 +16,19 @@ import {
 } from "@/lib/api-contract";
 import { getToken } from "@/lib/auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const configuredApiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
+function resolveApiBase(): string {
+  if (configuredApiBase) {
+    return configuredApiBase.replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+}
+
+const API_BASE = resolveApiBase();
 
 async function request<T>(path: string, init?: RequestInit, auth = false): Promise<T> {
   const headers: Record<string, string> = {
@@ -94,6 +106,37 @@ export async function getStats(): Promise<StatsResponse> {
 export async function getReport(scanId: string, format = "json"): Promise<ReportsResponse> {
   const query = new URLSearchParams({ scan_id: scanId, format }).toString();
   return request<ReportsResponse>(`${API_ENDPOINTS.reports}?${query}`, { method: "GET" }, true);
+}
+
+export async function downloadReportMarkdown(scanId: string): Promise<{ blob: Blob; filename: string }> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+  const res = await fetch(`${API_BASE}${API_ENDPOINTS.reportsDownload(scanId)}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let detail = `Request failed (${res.status})`;
+    try {
+      const data = (await res.json()) as { detail?: string };
+      if (typeof data?.detail === "string") detail = data.detail;
+    } catch {
+      // ignore json parse errors for non-json error bodies
+    }
+    throw new Error(detail);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+  const filename = match?.[1] ?? `trishul-report-${scanId}.md`;
+  return { blob, filename };
 }
 
 export async function getOperationsOverview(): Promise<OperationsOverviewResponse> {

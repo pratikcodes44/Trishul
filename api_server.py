@@ -8,7 +8,7 @@ and multi-tenant support for SaaS deployment.
 from fastapi import FastAPI, HTTPException, Depends, status, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -29,6 +29,7 @@ import secrets
 # Import our AI engine
 from ai_engine import analyze_asset_risk, batch_analyze_assets, ai_assistant
 from bounty_scout import BountyScout
+from report_writer import ReportWriter
 
 app = FastAPI(
     title="Trishul Security Platform API",
@@ -948,6 +949,37 @@ def _resolve_scan_results(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
+def _build_report_vulnerability_lines(scan_id: str, row: sqlite3.Row, results: Dict[str, Any]) -> List[str]:
+    vulnerability_count = max(0, int(results.get("vulnerabilities", 0)))
+    if vulnerability_count == 0:
+        return []
+    aggregate_entry = {
+        "info": {
+            "name": f"Aggregated findings summary ({vulnerability_count} detected)",
+            "severity": "medium",
+            "description": (
+                f"Scan {scan_id} completed with {vulnerability_count} findings recorded in runtime results. "
+                "Detailed raw finding records were not persisted in scan history, so this report summarizes the count."
+            ),
+        },
+        "matched-at": row["target"],
+    }
+    return [json.dumps(aggregate_entry)]
+
+
+def _generate_markdown_report_for_scan(current_user: dict, scan_id: str) -> Dict[str, Any]:
+    row = _get_scan_record(current_user, scan_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if row["status"] not in SCAN_TERMINAL_STATES:
+        raise HTTPException(status_code=400, detail="Scan is not finished yet")
+
+    results = _resolve_scan_results(row)
+    vulnerability_lines = _build_report_vulnerability_lines(scan_id, row, results)
+    report_path = ReportWriter().generate_report(row["target"], vulnerability_lines)
+    return {"row": row, "results": results, "report_path": report_path}
+
+
 def _stop_runtime_scan(scan_id: str) -> Optional[int]:
     with SCAN_RUNTIME_LOCK:
         job = SCAN_RUNTIME_JOBS.get(scan_id)
@@ -1032,7 +1064,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -1521,7 +1553,7 @@ async def discover_program(current_user: dict = Depends(verify_token)):
         tags=["Reports"])
 async def generate_report(
     scan_id: str,
-    format: str = "json",  # json, pdf, html, markdown
+    format: str = "markdown",  # markdown
     current_user: dict = Depends(verify_token)
 ):
     """
@@ -1530,13 +1562,9 @@ async def generate_report(
     Generate comprehensive security reports with AI-generated summaries.
     Formats: json, pdf, html, markdown
     """
-    row = _get_scan_record(current_user, scan_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Scan not found")
-    if row["status"] not in SCAN_TERMINAL_STATES:
-        raise HTTPException(status_code=400, detail="Scan is not finished yet")
-
-    results = _resolve_scan_results(row)
+    report_payload = _generate_markdown_report_for_scan(current_user, scan_id)
+    results = report_payload["results"]
+    report_path = report_payload["report_path"]
     scan_data = {
         'total_assets': int(results.get("subdomains_found", 0)) + int(results.get("live_hosts", 0)),
         'critical_findings': max(0, int(results.get("vulnerabilities", 0)) // 5),
@@ -1549,11 +1577,28 @@ async def generate_report(
     return {
         "success": True,
         "scan_id": scan_id,
-        "format": format,
+        "format": "markdown",
         "executive_summary": summary,
         "download_url": f"/api/v1/reports/download/{scan_id}",
-        "generated_at": datetime.utcnow().isoformat()
+        "generated_at": datetime.utcnow().isoformat(),
+        "filename": os.path.basename(report_path),
     }
+
+
+@app.get("/api/v1/reports/download/{scan_id}",
+        dependencies=[Depends(rate_limit_check)],
+        tags=["Reports"])
+async def download_report(
+    scan_id: str,
+    current_user: dict = Depends(verify_token)
+):
+    report_payload = _generate_markdown_report_for_scan(current_user, scan_id)
+    report_path = report_payload["report_path"]
+    return FileResponse(
+        report_path,
+        media_type="text/markdown; charset=utf-8",
+        filename=os.path.basename(report_path),
+    )
 
 
 @app.get("/api/v1/operations/overview",

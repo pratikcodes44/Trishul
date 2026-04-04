@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Menu, Search } from "lucide-react";
 import { AppPage } from "@/lib/types";
 import { recentAttackedSites, searchAttackedSites } from "@/lib/api-client";
-import { isAuthenticated } from "@/lib/auth";
+import { getAuthenticatedEmail, isAuthenticated } from "@/lib/auth";
 import type { SearchSiteRecord } from "@/lib/api-contract";
 
 interface AppHeaderProps {
@@ -30,9 +30,11 @@ export function AppHeader({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [canSearch, setCanSearch] = useState(false);
+  const [userEmail, setUserEmail] = useState("Account");
 
   useEffect(() => {
     setCanSearch(isAuthenticated());
+    setUserEmail(getAuthenticatedEmail() ?? "Account");
   }, []);
 
   useEffect(() => {
@@ -47,6 +49,12 @@ export function AppHeader({
         if (!cancelled) {
           setResults(res.results);
           setOpen(true);
+        }
+      } catch {
+        if (!cancelled) {
+          // Keep header stable when remote API/tunnel is temporarily unavailable.
+          setResults([]);
+          setOpen(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -117,9 +125,9 @@ export function AppHeader({
 
         <button className="ml-auto flex items-center gap-2 rounded-xl border border-[#d2d2d7] bg-white px-3 py-2 text-sm text-[#1d1d1f] transition-colors hover:bg-[#f5f5f7]">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1d1d1f] text-xs font-medium text-white">
-            M
+            {userEmail.charAt(0).toUpperCase() || "A"}
           </span>
-          <span className="hidden sm:inline">Manthan</span>
+          <span className="hidden max-w-[220px] truncate sm:inline">{userEmail}</span>
         </button>
       </div>
     </header>

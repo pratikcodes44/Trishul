@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AppScaffold } from '@/components/layout/app-scaffold';
-import { getReport, getReportsAnalytics, getStats } from '@/lib/api-client';
+import { downloadReportMarkdown, getReport, getReportsAnalytics, getStats } from '@/lib/api-client';
 import { isAuthenticated } from '@/lib/auth';
 import type { ReportsResponse, StatsResponse } from '@/lib/api-contract';
 
@@ -12,6 +12,7 @@ export default function ReportsPage() {
   const [scanId, setScanId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [analytics, setAnalytics] = useState<{ attacked_sites: number; completed_scans: number; findings_total: number; risk_index: number } | null>(null);
 
   useEffect(() => {
@@ -26,12 +27,34 @@ export default function ReportsPage() {
     setError(null);
     setLoading(true);
     try {
-      const data = await getReport(scanId, 'json');
+      const data = await getReport(scanId, 'markdown');
       setReport(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate report');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDownload() {
+    const selectedScanId = report?.scan_id || scanId;
+    if (!selectedScanId) return;
+    setError(null);
+    setDownloading(true);
+    try {
+      const { blob, filename } = await downloadReportMarkdown(selectedScanId);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download markdown report');
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -101,6 +124,14 @@ export default function ReportsPage() {
               <p className="text-sm font-semibold text-[#1d1d1f]">Executive Summary</p>
               <p className="mt-2 text-sm text-[#6e6e73]">{report.executive_summary}</p>
               <p className="mt-2 text-xs text-[#6e6e73]">Generated at: {report.generated_at}</p>
+              <button
+                className="mt-3 h-9 rounded-xl bg-[#1d1d1f] px-3 text-sm font-medium text-white disabled:opacity-60"
+                onClick={handleDownload}
+                disabled={downloading}
+                type="button"
+              >
+                {downloading ? 'Downloading...' : 'Download .md report'}
+              </button>
             </div>
           ) : null}
         </section>

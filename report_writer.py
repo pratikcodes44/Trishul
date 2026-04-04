@@ -29,6 +29,7 @@ class ReportWriter:
         report_content += f"**Discovered By:** Project Trishul (Autonomous Bug Bounty Pipeline)\n\n"
         report_content += "---\n\n"
 
+        rendered_findings = 0
         for vuln in vulnerabilities:
             try:
                 data = json.loads(vuln)
@@ -67,9 +68,16 @@ class ReportWriter:
                     report_content += "This vulnerability allows an unauthorized attacker to compromise the integrity, confidentiality, or availability of the application.\n\n"
                 
                 report_content += "---\n\n"
+                rendered_findings += 1
 
             except json.JSONDecodeError:
                 continue
+
+        if rendered_findings == 0:
+            report_content += "## Scan Outcome\n"
+            report_content += "**Result:** No vulnerabilities found.\n\n"
+            report_content += "The scan completed without any reportable vulnerability findings for the provided target scope.\n\n"
+            report_content += "---\n\n"
 
         with open(filepath, "w") as f:
             f.write(report_content)
