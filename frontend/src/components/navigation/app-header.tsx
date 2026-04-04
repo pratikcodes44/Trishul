@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, Search } from "lucide-react";
 import { AppPage } from "@/lib/types";
 import { recentAttackedSites, searchAttackedSites } from "@/lib/api-client";
@@ -29,8 +29,11 @@ export function AppHeader({
   const [results, setResults] = useState<SearchSiteRecord[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [canSearch, setCanSearch] = useState(false);
 
-  const canSearch = useMemo(() => isAuthenticated(), []);
+  useEffect(() => {
+    setCanSearch(isAuthenticated());
+  }, []);
 
   useEffect(() => {
     if (!canSearch) return;

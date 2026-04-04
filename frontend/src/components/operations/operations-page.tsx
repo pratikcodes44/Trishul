@@ -524,7 +524,7 @@ export function OperationsPage() {
                 </select>
               </label>
             </div>
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               {mode === "manual_override" ? (
                 <button
                   className="h-10 rounded-xl bg-[#1d1d1f] px-4 text-sm font-medium text-white disabled:opacity-60"
@@ -568,12 +568,16 @@ export function OperationsPage() {
               >
                 Stop
               </button>
-              <span className="text-xs text-[#6e6e73]">Status: {status}</span>
-              {overview ? (
-                <span className="text-xs text-[#6e6e73]">
-                  Completed: {overview.summary.completed_scans} • Running: {overview.summary.running_scans}
-                </span>
-              ) : null}
+              <div className="min-w-0 basis-full text-xs text-[#6e6e73] sm:basis-auto">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="break-words">Status: {status}</span>
+                  {overview ? (
+                    <span className="break-words">
+                      Completed: {overview.summary.completed_scans} • Running: {overview.summary.running_scans}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
             {confirmAuto ? (
               <div className="mt-3 rounded-xl border border-[#d2d2d7] bg-[#fafafa] p-3 text-sm text-[#1d1d1f]">
