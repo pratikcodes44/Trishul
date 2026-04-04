@@ -188,6 +188,35 @@ cp .env.example .env
 # Edit .env with your API keys
 ```
 
+### Frontend + API (New UI)
+
+```bash
+# Terminal 1: backend API
+./start_api.sh
+
+# Terminal 2: frontend
+cd frontend
+npm install
+export NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+npm run dev
+```
+
+Open:
+- Frontend: `http://localhost:3000`
+- API docs: `http://localhost:8000/api/docs`
+
+Auth-first flow:
+1. Visit `/auth` and login/register.
+2. Start scan from `/operations`.
+3. View report + stats on `/reports`.
+4. Use header search to find previously attacked websites (per-user DB tracking).
+
+New API surfaces for richer UI:
+- `GET /api/v1/operations/overview`
+- `GET /api/v1/reports/analytics`
+- `GET /api/v1/search/attacked-sites`
+- `GET /api/v1/search/recent`
+
 ### Automated Tests
 
 ```bash

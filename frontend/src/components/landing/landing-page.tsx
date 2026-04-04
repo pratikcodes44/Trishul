@@ -21,10 +21,10 @@ export function LandingPage() {
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <button
-            onClick={() => router.push("/operations")}
+            onClick={() => router.push("/auth")}
             className="h-11 rounded-xl bg-[#1d1d1f] px-5 text-sm font-medium text-white transition-colors hover:bg-[#000]"
           >
-            Start Operations
+            Sign In to Start
           </button>
           <button
             onClick={() => router.push("/reports")}

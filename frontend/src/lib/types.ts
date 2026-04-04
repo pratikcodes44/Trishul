@@ -1,4 +1,4 @@
-export type AppPage = "landing" | "operations" | "reports";
+export type AppPage = "landing" | "operations" | "reports" | "auth";
 
 export type Severity = "critical" | "high" | "medium" | "low";
 

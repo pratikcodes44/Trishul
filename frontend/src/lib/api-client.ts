@@ -1,0 +1,96 @@
+import {
+  API_ENDPOINTS,
+  type AuthRequest,
+  type AuthResponse,
+  type OperationsOverviewResponse,
+  type ReportsAnalyticsResponse,
+  type ReportsResponse,
+  type ScanStatusResponse,
+  type SearchResponse,
+  type StartScanRequest,
+  type StartScanResponse,
+  type StatsResponse,
+} from "@/lib/api-contract";
+import { getToken } from "@/lib/auth";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+async function request<T>(path: string, init?: RequestInit, auth = false): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (auth) {
+    const token = getToken();
+    if (!token) {
+      throw new Error("Authentication required.");
+    }
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const detail =
+      data && typeof data === "object" && "detail" in data && typeof (data as { detail?: unknown }).detail === "string"
+        ? (data as { detail: string }).detail
+        : `Request failed (${res.status})`;
+    throw new Error(detail);
+  }
+
+  return data as T;
+}
+
+export async function register(payload: AuthRequest): Promise<AuthResponse> {
+  return request<AuthResponse>(API_ENDPOINTS.register, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function login(payload: AuthRequest): Promise<AuthResponse> {
+  return request<AuthResponse>(API_ENDPOINTS.login, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function startScan(payload: StartScanRequest): Promise<StartScanResponse> {
+  return request<StartScanResponse>(API_ENDPOINTS.startScan, { method: "POST", body: JSON.stringify(payload) }, true);
+}
+
+export async function getScanStatus(scanId: string): Promise<ScanStatusResponse> {
+  return request<ScanStatusResponse>(API_ENDPOINTS.scanStatus(scanId), { method: "GET" }, true);
+}
+
+export async function getStats(): Promise<StatsResponse> {
+  return request<StatsResponse>(API_ENDPOINTS.stats, { method: "GET" }, true);
+}
+
+export async function getReport(scanId: string, format = "json"): Promise<ReportsResponse> {
+  const query = new URLSearchParams({ scan_id: scanId, format }).toString();
+  return request<ReportsResponse>(`${API_ENDPOINTS.reports}?${query}`, { method: "GET" }, true);
+}
+
+export async function getOperationsOverview(): Promise<OperationsOverviewResponse> {
+  return request<OperationsOverviewResponse>(API_ENDPOINTS.operationsOverview, { method: "GET" }, true);
+}
+
+export async function getReportsAnalytics(): Promise<ReportsAnalyticsResponse> {
+  return request<ReportsAnalyticsResponse>(API_ENDPOINTS.reportsAnalytics, { method: "GET" }, true);
+}
+
+export async function searchAttackedSites(query: string, limit = 20): Promise<SearchResponse> {
+  const qs = new URLSearchParams({ query, limit: String(limit) }).toString();
+  return request<SearchResponse>(`${API_ENDPOINTS.searchAttackedSites}?${qs}`, { method: "GET" }, true);
+}
+
+export async function recentAttackedSites(limit = 20): Promise<SearchResponse> {
+  const qs = new URLSearchParams({ limit: String(limit) }).toString();
+  return request<SearchResponse>(`${API_ENDPOINTS.searchRecent}?${qs}`, { method: "GET" }, true);
+}

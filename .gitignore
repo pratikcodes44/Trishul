@@ -24,6 +24,8 @@ ENV/
 
 # Generated outputs
 reports/
+!frontend/src/app/reports/
+!frontend/src/app/reports/**
 live_targets.txt
 nuclei_results.json
 maintenance.log
