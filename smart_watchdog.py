@@ -5,8 +5,11 @@ Uses AI to analyze request activity and determine if attack is truly stuck
 import time
 import threading
 import logging
+import json
 from collections import deque
 import statistics
+from typing import Any, Dict, Optional
+from ai_engine import LocalLLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,13 @@ class SmartWatchdog:
     Only triggers stuck alert when ZERO requests for sustained period.
     """
     
-    def __init__(self, target_domain: str, gmail_notifier, zero_activity_threshold: int = 60):
+    def __init__(
+        self,
+        target_domain: str,
+        gmail_notifier,
+        zero_activity_threshold: int = 60,
+        require_ai_verdict: bool = True,
+    ):
         """
         Initialize smart watchdog.
         
@@ -29,6 +38,7 @@ class SmartWatchdog:
         self.target_domain = target_domain
         self.gmail_notifier = gmail_notifier
         self.zero_activity_threshold = zero_activity_threshold
+        self.require_ai_verdict = require_ai_verdict
         
         # Activity tracking
         self.request_history = deque(maxlen=120)  # Last 2 minutes of samples
@@ -40,6 +50,7 @@ class SmartWatchdog:
         # Phase tracking
         self.current_phase = 0
         self.current_phase_name = "Initialization"
+        self.phase_start_time = time.time()
         
         # Thread control
         self.running = False
@@ -48,6 +59,16 @@ class SmartWatchdog:
         
         # AI analysis
         self.activity_window_size = 30  # Analyze last 30 seconds
+        self.min_phase_stuck_seconds = 600  # Non-request phases need long delay before candidate
+        self.phase10_warmup_seconds = 120
+        self.ai_check_interval = 20
+        self.last_ai_check_time = 0.0
+        self.last_ai_verdict: Dict[str, Any] = {
+            "stuck": False,
+            "confidence": 0.0,
+            "reason": "not evaluated",
+        }
+        self.ai_provider = LocalLLMProvider()
         
     def start(self):
         """Start the smart watchdog thread."""
@@ -78,6 +99,7 @@ class SmartWatchdog:
         self.current_phase = phase_num
         if phase_name:
             self.current_phase_name = phase_name
+        self.phase_start_time = time.time()
         
         # Reset alert tracking when we progress to a new phase
         if phase_num != self.alert_sent_for_phase:
@@ -137,9 +159,7 @@ class SmartWatchdog:
         ]
         
         if not recent_activity:
-            # No recent data, check time since last activity
-            time_since_last = now - self.last_activity_time
-            return time_since_last >= self.zero_activity_threshold
+            return False
         
         # Calculate request deltas (new requests per sample)
         deltas = [sample['delta'] for sample in recent_activity]
@@ -172,6 +192,97 @@ class SmartWatchdog:
                 f"(avg: {avg_delta:.1f} req/sample)"
             )
             return False
+
+    def _phase_based_candidate(self) -> bool:
+        """
+        For phases where request counters are unavailable, detect potential stall
+        from elapsed phase time instead of immediate zero-request behavior.
+        """
+        now = time.time()
+        phase_elapsed = now - self.phase_start_time
+        time_since_last = now - self.last_activity_time
+
+        # Phase 10 can be legitimately slow at startup.
+        threshold = self.min_phase_stuck_seconds
+        if self.current_phase == 10:
+            threshold = max(threshold, self.phase10_warmup_seconds + self.zero_activity_threshold)
+
+        return phase_elapsed >= threshold and time_since_last >= self.zero_activity_threshold
+
+    def _build_ai_prompt(self, stuck_duration: float, activity_based: bool) -> str:
+        status = self.get_status()
+        payload = {
+            "target": self.target_domain,
+            "phase_num": self.current_phase,
+            "phase_name": self.current_phase_name,
+            "phase_elapsed_seconds": int(time.time() - self.phase_start_time),
+            "stuck_duration_seconds": int(stuck_duration),
+            "recent_request_count_30s": status.get("recent_request_count", 0),
+            "time_since_last_activity_seconds": int(status.get("time_since_last_activity", 0)),
+            "activity_based_trigger": activity_based,
+            "zero_activity_threshold_seconds": self.zero_activity_threshold,
+        }
+        return (
+            "You are deciding if a security scan phase is truly stuck.\n"
+            "Return STRICT JSON only: {\"stuck\": true|false, \"confidence\": 0..1, \"reason\": \"short\"}.\n"
+            "Mark stuck=true ONLY if confidence >= 0.8 and there is no meaningful progress.\n"
+            "Prefer false when uncertain or when scan could be slow but active.\n"
+            f"Data: {json.dumps(payload)}"
+        )
+
+    def _ai_stuck_verdict(self, stuck_duration: float, activity_based: bool) -> Dict[str, Any]:
+        """
+        Ask local AI if candidate should be treated as truly stuck.
+        Falls back to safe behavior (not stuck) on parse/availability issues.
+        """
+        if not self.require_ai_verdict:
+            return {"stuck": True, "confidence": 1.0, "reason": "ai gate disabled"}
+
+        now = time.time()
+        if now - self.last_ai_check_time < self.ai_check_interval:
+            return self.last_ai_verdict
+
+        self.last_ai_check_time = now
+        if not self.ai_provider.is_available():
+            verdict = {
+                "stuck": False,
+                "confidence": 0.0,
+                "reason": "ai unavailable; suppressing alert",
+            }
+            self.last_ai_verdict = verdict
+            return verdict
+
+        raw = self.ai_provider.generate(
+            prompt=self._build_ai_prompt(stuck_duration, activity_based),
+            system_prompt="Output valid JSON only.",
+            temperature=0.0,
+            max_tokens=120,
+        )
+        if not raw:
+            verdict = {
+                "stuck": False,
+                "confidence": 0.0,
+                "reason": "empty ai response; suppressing alert",
+            }
+            self.last_ai_verdict = verdict
+            return verdict
+
+        try:
+            data = json.loads(raw)
+            stuck = bool(data.get("stuck", False))
+            confidence = float(data.get("confidence", 0.0))
+            reason = str(data.get("reason", ""))
+            verdict = {"stuck": stuck and confidence >= 0.8, "confidence": confidence, "reason": reason}
+            self.last_ai_verdict = verdict
+            return verdict
+        except (ValueError, TypeError):
+            verdict = {
+                "stuck": False,
+                "confidence": 0.0,
+                "reason": "invalid ai json; suppressing alert",
+            }
+            self.last_ai_verdict = verdict
+            return verdict
     
     def _ai_monitor(self):
         """Background AI monitoring loop."""
@@ -181,12 +292,24 @@ class SmartWatchdog:
             if not self.running:
                 break
             
-            # Run AI analysis
-            is_stuck = self._analyze_activity()
+            # Candidate detection: request-activity for phase 10, phase-time fallback otherwise.
+            activity_candidate = self._analyze_activity() if self.current_phase == 10 else False
+            phase_candidate = self._phase_based_candidate() if self.current_phase != 10 else False
+            is_stuck_candidate = activity_candidate or phase_candidate
             
             # If AI determines we're stuck and haven't alerted for this phase
-            if is_stuck and self.alert_sent_for_phase != self.current_phase:
+            if is_stuck_candidate and self.alert_sent_for_phase != self.current_phase:
                 stuck_duration = time.time() - self.last_activity_time
+                verdict = self._ai_stuck_verdict(stuck_duration, activity_candidate)
+                if not verdict.get("stuck", False):
+                    logger.info(
+                        "🤖 AI verdict for phase %s (%s): NOT stuck (confidence=%.2f, reason=%s)",
+                        self.current_phase,
+                        self.current_phase_name,
+                        float(verdict.get("confidence", 0.0)),
+                        verdict.get("reason", ""),
+                    )
+                    continue
                 
                 logger.warning(
                     f"🤖 AI-WATCHDOG ALERT: Phase {self.current_phase} ({self.current_phase_name}) "
@@ -223,6 +346,8 @@ class SmartWatchdog:
             'recent_request_count': total_requests,
             'current_phase': self.current_phase,
             'current_phase_name': self.current_phase_name,
+            'phase_elapsed_seconds': now - self.phase_start_time,
             'threshold': self.zero_activity_threshold,
-            'is_active': total_requests > 0
+            'is_active': total_requests > 0,
+            'ai_verdict': self.last_ai_verdict,
         }
