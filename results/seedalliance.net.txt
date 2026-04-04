@@ -1,0 +1,13 @@
+https://seedalliance.net/api/get_posts/?post_type=FUZZ&count=FUZZ&include=FUZZ
+http://seedalliance.net/galleries/isif-image-gallery/?page=FUZZ
+https://seedalliance.net/?p=FUZZ
+http://seedalliance.net/wp-json/oembed/1.0/embed?url=FUZZ&format=FUZZ
+http://seedalliance.net/galleries/?page=FUZZ
+https://seedalliance.net/wp-json/oembed/1.0/embed?url=FUZZ
+https://seedalliance.net/galleries/isif-image-gallery/?page=FUZZ
+http://seedalliance.net/?p=FUZZ
+https://seedalliance.net/?wordfence_syncAttackData=FUZZ
+http://seedalliance.net/galleries/image-gallery/?page=FUZZ
+http://seedalliance.net/wp-json/oembed/1.0/embed?url=FUZZ
+https://seedalliance.net/wp-json/oembed/1.0/embed?url=FUZZ&format=FUZZ
+https://seedalliance.net/wp-login.php?redirect_to=FUZZ&reauth=FUZZ
