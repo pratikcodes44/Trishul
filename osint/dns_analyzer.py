@@ -19,12 +19,13 @@ class DNSAnalyzer:
     def __init__(self):
         self.record_types = ['A', 'AAAA', 'MX', 'TXT', 'NS', 'CAA', 'SOA', 'CNAME']
     
-    def analyze(self, domain: str) -> Dict:
+    def analyze(self, domain: str, timeout: float = 5.0) -> Dict:
         """
         Perform comprehensive DNS analysis.
         
         Args:
             domain: Target domain
+            timeout: Timeout for DNS queries in seconds (default: 5.0)
         
         Returns:
             Dictionary of DNS records by type
@@ -33,9 +34,14 @@ class DNSAnalyzer:
         
         logger.info(f"🔍 Performing DNS deep dive on {domain}...")
         
+        # Set DNS resolver timeout
+        resolver = dns.resolver.Resolver()
+        resolver.timeout = timeout
+        resolver.lifetime = timeout
+        
         for record_type in self.record_types:
             try:
-                answers = dns.resolver.resolve(domain, record_type)
+                answers = resolver.resolve(domain, record_type)
                 records[record_type.lower()] = []
                 
                 for rdata in answers:

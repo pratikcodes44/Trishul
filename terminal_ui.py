@@ -1,24 +1,30 @@
 """
 Enhanced Terminal UI with streaming effects and interactive elements.
 Makes the terminal feel alive like a modern AI assistant.
+Now includes detailed tool execution tracking for complete visibility.
 """
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich import box
 from rich.live import Live
 from rich.layout import Layout
+from rich.tree import Tree
+from rich.status import Status
 import time
 import sys
+from datetime import datetime
+from collections import defaultdict
 
 class StreamingUI:
     """Provides streaming text effects for terminal output."""
     
     def __init__(self, console=None):
         self.console = console or Console()
+        self.tool_tracker = ToolExecutionTracker(console=self.console)
         
     def stream_text(self, text: str, style: str = "white", delay: float = 0.02):
         """Stream text character by character for AI-like effect."""
@@ -122,6 +128,135 @@ class StreamingUI:
             padding=(1, 4)
         ))
         self.console.print()
+    
+    def track_tool(self, tool_name: str, phase: str, status: str = "running", result: str = None):
+        """Track tool execution status."""
+        self.tool_tracker.track_tool(tool_name, phase, status, result)
+    
+    def show_tool_summary(self, phase: str = None):
+        """Display summary of tool executions."""
+        self.tool_tracker.show_summary(phase)
+
+
+class ToolExecutionTracker:
+    """Real-time tracking of all security tool executions."""
+    
+    def __init__(self, console=None):
+        self.console = console or Console()
+        self.tools = defaultdict(lambda: {"status": "pending", "start": None, "end": None, "result": None})
+        self.phase_tools = defaultdict(list)
+        self.current_phase = None
+        
+    def track_tool(self, tool_name: str, phase: str, status: str = "running", result: str = None):
+        """Track a tool's execution status."""
+        tool_key = f"{phase}:{tool_name}"
+        
+        if status == "running":
+            self.tools[tool_key]["status"] = "running"
+            self.tools[tool_key]["start"] = datetime.now()
+            self.tools[tool_key]["phase"] = phase
+            if tool_name not in self.phase_tools[phase]:
+                self.phase_tools[phase].append(tool_name)
+            self._display_tool_status(tool_name, phase, status)
+        elif status in ["complete", "done", "success"]:
+            self.tools[tool_key]["status"] = "complete"
+            self.tools[tool_key]["end"] = datetime.now()
+            self.tools[tool_key]["result"] = result
+            self._display_tool_status(tool_name, phase, "complete", result)
+        elif status == "skipped":
+            self.tools[tool_key]["status"] = "skipped"
+            self.tools[tool_key]["result"] = result or "Binary not found"
+            self._display_tool_status(tool_name, phase, "skipped", result)
+        elif status == "error":
+            self.tools[tool_key]["status"] = "error"
+            self.tools[tool_key]["end"] = datetime.now()
+            self.tools[tool_key]["result"] = result
+            self._display_tool_status(tool_name, phase, "error", result)
+    
+    def _display_tool_status(self, tool_name: str, phase: str, status: str, result: str = None):
+        """Display real-time tool status updates."""
+        icons = {
+            "running": "⏳",
+            "complete": "✅",
+            "skipped": "⊘",
+            "error": "❌"
+        }
+        colors = {
+            "running": "yellow",
+            "complete": "green",
+            "skipped": "dim",
+            "error": "red"
+        }
+        
+        icon = icons.get(status, "•")
+        color = colors.get(status, "white")
+        result_text = f": {result}" if result else ""
+        
+        self.console.print(f"  [{color}]{icon} {tool_name}[/{color}]{result_text}")
+    
+    def show_summary(self, phase: str = None):
+        """Display comprehensive summary of tool executions."""
+        if phase:
+            phases = [phase]
+        else:
+            phases = sorted(set(t["phase"] for t in self.tools.values() if "phase" in t))
+        
+        for p in phases:
+            tools_in_phase = self.phase_tools.get(p, [])
+            if not tools_in_phase:
+                continue
+            
+            table = Table(title=f"🔧 {p} - Tool Execution Summary", border_style="cyan", box=box.ROUNDED)
+            table.add_column("Tool", style="bold white")
+            table.add_column("Status", justify="center")
+            table.add_column("Duration", justify="right", style="dim")
+            table.add_column("Result", style="cyan")
+            
+            for tool in tools_in_phase:
+                tool_key = f"{p}:{tool}"
+                tool_data = self.tools[tool_key]
+                
+                # Status with icon
+                status_map = {
+                    "running": "[yellow]⏳ Running[/yellow]",
+                    "complete": "[green]✅ Done[/green]",
+                    "skipped": "[dim]⊘ Skipped[/dim]",
+                    "error": "[red]❌ Error[/red]"
+                }
+                status_text = status_map.get(tool_data["status"], tool_data["status"])
+                
+                # Duration calculation
+                if tool_data["start"]:
+                    end = tool_data["end"] or datetime.now()
+                    duration = (end - tool_data["start"]).total_seconds()
+                    duration_text = f"{duration:.1f}s"
+                else:
+                    duration_text = "-"
+                
+                # Result
+                result_text = tool_data.get("result", "-") or "-"
+                
+                table.add_row(tool, status_text, duration_text, result_text)
+            
+            self.console.print(table)
+            self.console.print()
+    
+    def get_phase_stats(self, phase: str):
+        """Get statistics for a specific phase."""
+        tools_in_phase = [k for k in self.tools.keys() if k.startswith(f"{phase}:")]
+        total = len(tools_in_phase)
+        complete = sum(1 for k in tools_in_phase if self.tools[k]["status"] == "complete")
+        running = sum(1 for k in tools_in_phase if self.tools[k]["status"] == "running")
+        errors = sum(1 for k in tools_in_phase if self.tools[k]["status"] == "error")
+        skipped = sum(1 for k in tools_in_phase if self.tools[k]["status"] == "skipped")
+        
+        return {
+            "total": total,
+            "complete": complete,
+            "running": running,
+            "errors": errors,
+            "skipped": skipped
+        }
 
 
 class VulnerabilityDisplay:

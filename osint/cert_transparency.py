@@ -34,12 +34,13 @@ class CertTransparency:
         """
         subdomains = set()
         
-        # Query crt.sh
+        # Query crt.sh with reduced timeout
         try:
             url = f"https://crt.sh/?q=%.{domain}&output=json"
             logger.info(f"📜 Querying Certificate Transparency logs for {domain}...")
             
-            response = requests.get(url, timeout=30)
+            # Reduced timeout to 10 seconds - if CT logs are slow, skip them
+            response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
                 try:
@@ -67,8 +68,10 @@ class CertTransparency:
             else:
                 logger.warning(f"crt.sh returned status {response.status_code}")
                 
+        except requests.Timeout:
+            logger.warning(f"⏱️  Certificate Transparency query timed out (skipping - will rely on subfinder)")
         except requests.RequestException as e:
-            logger.error(f"Certificate Transparency query failed: {e}")
+            logger.warning(f"Certificate Transparency query failed: {e} (skipping)")
         
         # Add root domain
         subdomains.add(domain)
@@ -85,7 +88,7 @@ class CertTransparency:
         try:
             url = f"https://api.certspotter.com/v1/issuances?domain={domain}&include_subdomains=true&expand=dns_names"
             
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()

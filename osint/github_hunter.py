@@ -50,7 +50,7 @@ class GitHubHunter:
                 if self.api_token:
                     headers['Authorization'] = f'token {self.api_token}'
                 
-                response = requests.get(url, headers=headers, timeout=15)
+                response = requests.get(url, headers=headers, timeout=10)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -89,7 +89,7 @@ class GitHubHunter:
             if self.api_token:
                 headers['Authorization'] = f'token {self.api_token}'
             
-            response = requests.get(url, headers=headers, timeout=15)
+            response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()

@@ -14,7 +14,9 @@ RUN apk add --no-cache git && \
     go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest && \
     go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest && \
     go install -v github.com/projectdiscovery/katana/cmd/katana@latest && \
-    go install -v github.com/lc/gau/v2/cmd/gau@latest
+    go install -v github.com/lc/gau/v2/cmd/gau@latest && \
+    go install -v github.com/tomnomnom/waybackurls@latest && \
+    go install -v github.com/hahwul/dalfox/v2@latest
 
 # =====================================================
 # Final image
@@ -27,6 +29,16 @@ LABEL description="Autonomous EASM & Bug Bounty Platform"
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcap0.8 \
+    amass \
+    dnsrecon \
+    gobuster \
+    feroxbuster \
+    nikto \
+    sqlmap \
+    whatweb \
+    wpscan \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Go binaries from builder
@@ -36,6 +48,8 @@ COPY --from=tools-builder /go/bin/nuclei /usr/local/bin/
 COPY --from=tools-builder /go/bin/naabu /usr/local/bin/
 COPY --from=tools-builder /go/bin/katana /usr/local/bin/
 COPY --from=tools-builder /go/bin/gau /usr/local/bin/
+COPY --from=tools-builder /go/bin/waybackurls /usr/local/bin/
+COPY --from=tools-builder /go/bin/dalfox /usr/local/bin/
 
 # Create app directory
 WORKDIR /app
@@ -43,6 +57,7 @@ WORKDIR /app
 # Copy requirements first for caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN npm install -g @0xsha/paramspider || true
 
 # Copy application code
 COPY *.py ./

@@ -7,6 +7,13 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+# Suppress non-critical dependency warnings
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', message='.*urllib3.*')
+warnings.filterwarnings('ignore', message='.*chardet.*')
+warnings.filterwarnings('ignore', message='.*charset_normalizer.*')
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -59,6 +66,17 @@ try:
     from dynamic_tui import create_tui
     from ai_engine import analyze_asset_risk, batch_analyze_assets, ai_assistant
     from campaign_manager import campaign_manager, Campaign, CampaignStatus, ProgramPlatform
+    from smart_watchdog import SmartWatchdog  # AI-powered stuck detection
+    from extended_tools import (
+        AmassRunner,
+        DNSReconRunner,
+        WaybackUrlsRunner,
+        WebDiscoveryRunner,
+        ParamDiscoveryRunner,
+        WhatWebRunner,
+        SupplementalWebScanner,
+        findings_to_nuclei_lines,
+    )
 except ImportError as e:
     logging.error(f"Import Error: {e}")
     sys.exit(1)
@@ -317,99 +335,8 @@ class AttackProgressTracker:
         self.update()
 
 
-class PhaseWatchdog:
-    """
-    Background watchdog thread to detect stuck phases.
-    Sends email alert if no progress for specified timeout.
-    """
-    
-    def __init__(self, target_domain: str, timeout: int = 300):
-        """
-        Initialize watchdog.
-        
-        Args:
-            target_domain: Target domain being scanned
-            timeout: Timeout in seconds (default: 300 = 5 minutes)
-        """
-        self.target_domain = target_domain
-        self.timeout = timeout
-        self.last_progress_time = time.time()
-        self.current_phase = 0
-        self.current_phase_name = "Initialization"
-        self.running = False
-        self.thread = None
-        self.gmail_notifier = get_gmail_notifier()
-        self.alert_sent_for_phase = -1  # Track which phase we already alerted for
-        
-    def start(self):
-        """Start the watchdog thread."""
-        if self.running:
-            logger.warning("Watchdog already running")
-            return
-        
-        self.running = True
-        self.last_progress_time = time.time()
-        self.thread = threading.Thread(target=self._monitor, daemon=True, name="PhaseWatchdog")
-        self.thread.start()
-        logger.info(f"🐕 Phase watchdog started (timeout: {self.timeout}s)")
-    
-    def stop(self):
-        """Stop the watchdog thread."""
-        self.running = False
-        if self.thread:
-            logger.info("🐕 Phase watchdog stopped")
-    
-    def update_progress(self, phase_num: int, phase_name: str = ""):
-        """
-        Called by main pipeline when phase progresses.
-        
-        Args:
-            phase_num: Current phase number
-            phase_name: Optional phase name
-        """
-        self.last_progress_time = time.time()
-        self.current_phase = phase_num
-        if phase_name:
-            self.current_phase_name = phase_name
-        else:
-            if 0 < phase_num <= len(PIPELINE_PHASES):
-                self.current_phase_name = PIPELINE_PHASES[phase_num - 1]["name"]
-        
-        # Reset alert tracking when we progress to a new phase
-        if phase_num != self.alert_sent_for_phase:
-            self.alert_sent_for_phase = -1
-    
-    def _monitor(self):
-        """Background monitoring loop."""
-        while self.running:
-            time.sleep(30)  # Check every 30 seconds
-            
-            if not self.running:
-                break
-            
-            elapsed_since_progress = time.time() - self.last_progress_time
-            
-            # If stuck and haven't sent alert for this phase yet
-            if elapsed_since_progress > self.timeout and self.alert_sent_for_phase != self.current_phase:
-                logger.warning(
-                    f"⚠️  Phase {self.current_phase} ({self.current_phase_name}) "
-                    f"stuck for {int(elapsed_since_progress)}s"
-                )
-                
-                # Send email alert
-                try:
-                    self.gmail_notifier.send_stuck_alert(
-                        domain=self.target_domain,
-                        phase_num=self.current_phase,
-                        phase_name=self.current_phase_name,
-                        stuck_duration=elapsed_since_progress
-                    )
-                    self.alert_sent_for_phase = self.current_phase
-                except Exception as e:
-                    logger.error(f"Failed to send stuck alert: {e}")
-                
-                # Reset timer to avoid spam (send alert every timeout period)
-                self.last_progress_time = time.time()
+# PhaseWatchdog class removed - replaced by AI-powered SmartWatchdog (see smart_watchdog.py)
+# Old watchdog had false positives on slow scans. New watchdog monitors request activity.
 
 
 def print_banner():
@@ -620,7 +547,15 @@ Examples:
     prober = LiveHostProber()
     crawler = KatanaRunner()
     scanner = NucleiRunner()
-    time_machine = TimeMachine()           
+    time_machine = TimeMachine()
+    streaming_ui = StreamingUI(console=console if RICH_AVAILABLE else None)
+    amass_runner = AmassRunner(scope_checker=scope_checker)
+    dnsrecon_runner = DNSReconRunner(scope_checker=scope_checker)
+    waybackurls_runner = WaybackUrlsRunner(scope_checker=scope_checker)
+    web_discovery_runner = WebDiscoveryRunner(scope_checker=scope_checker)
+    param_discovery_runner = ParamDiscoveryRunner(scope_checker=scope_checker)
+    whatweb_runner = WhatWebRunner(scope_checker=scope_checker)
+    supplemental_scanner = SupplementalWebScanner(scope_checker=scope_checker)
     target_domain = ""
     program_url = ""
     platform = ""
@@ -835,18 +770,20 @@ Examples:
         tui.start()
         logger.info("[DIAGNOSTIC] TUI started successfully")
         
-        # Initialize and start watchdog
-        logger.info("[DIAGNOSTIC] Starting phase watchdog")
-        watchdog = PhaseWatchdog(target_domain, timeout=300)  # 5 minutes
-        watchdog.start()
+        # Initialize and start smart AI watchdog
+        logger.info("[DIAGNOSTIC] Starting AI-powered smart watchdog")
+        # Initialize Gmail notifier
+        gmail_notifier = get_gmail_notifier()
         
-        # Note: Using DynamicTUI for progress tracking instead of AttackProgressTracker to avoid conflicts
+        # Start AI-powered smart watchdog for stuck detection
+        # Only alerts when ZERO requests for 60 seconds (not just slow progress)
+        smart_watchdog = SmartWatchdog(
+            target_domain=target_domain,
+            gmail_notifier=gmail_notifier,
+            zero_activity_threshold=60  # 60 seconds of zero activity before alert
+        )
+        smart_watchdog.start()
         
-        # Send attack started notification
-        if gmail_notifier.enabled:
-            logger.info("📧 Sending attack start notification...")
-            gmail_notifier.send_attack_started(target_domain, attack_start_time)
-
         # Print explicit AI wake-up message once at attack start
         if getattr(ai_assistant, "use_local_ai", False):
             if RICH_AVAILABLE:
@@ -872,7 +809,7 @@ Examples:
         
         # ========== PHASE 1: OSINT RECONNAISSANCE ==========
         logger.info("[DIAGNOSTIC] Entering Phase 1: OSINT Reconnaissance")
-        watchdog.update_progress(1, "OSINT Reconnaissance")
+        smart_watchdog.record_phase_change(1, "OSINT Reconnaissance")
         ai_phase_guidance(1, "OSINT Reconnaissance", {"target": target_domain, "skip_osint": args.skip_osint})
         osint_subdomains = set()
         
@@ -914,16 +851,43 @@ Examples:
             tui.complete_phase(1, "OSINT: Skipped")
         
         # ========== PHASE 2: Subdomain Discovery (Active) ==========
-        watchdog.update_progress(2, "Subdomain Discovery")
+        smart_watchdog.record_phase_change(2, "Subdomain Discovery")
         tui.set_phase(2)
         ai_phase_guidance(2, "Subdomain Discovery", {"target": target_domain})
         # Update target count in TUI if method exists (Note: DynamicTUI may not have set_targets)
         
+        # Track subfinder
+        streaming_ui.track_tool("subfinder", "Phase 2: Subdomain Discovery", "running")
         tui.update_phase_details(2, "[yellow]subfinder running[/yellow]")
         raw_subs = subfinder.discover_subdomains(target_domain)
+        streaming_ui.track_tool("subfinder", "Phase 2: Subdomain Discovery", "complete", f"{len(raw_subs)} found")
+        supplemental_subdomains = []
+        
+        # Track amass
+        streaming_ui.track_tool("amass", "Phase 2: Subdomain Discovery", "running")
+        tui.update_phase_details(2, "[yellow]running amass passive enum[/yellow]")
+        try:
+            amass_results = amass_runner.discover_subdomains(target_domain)
+            supplemental_subdomains.extend(amass_results)
+            streaming_ui.track_tool("amass", "Phase 2: Subdomain Discovery", "complete", f"{len(amass_results)} found")
+        except Exception as e:
+            logger.debug(f"Amass integration error: {e}")
+            streaming_ui.track_tool("amass", "Phase 2: Subdomain Discovery", "skipped", str(e))
+        
+        # Track dnsrecon
+        streaming_ui.track_tool("dnsrecon", "Phase 2: Subdomain Discovery", "running")
+        tui.update_phase_details(2, "[yellow]running dnsrecon std enum[/yellow]")
+        try:
+            dnsrecon_results = dnsrecon_runner.discover_subdomains(target_domain)
+            supplemental_subdomains.extend(dnsrecon_results)
+            streaming_ui.track_tool("dnsrecon", "Phase 2: Subdomain Discovery", "complete", f"{len(dnsrecon_results)} found")
+        except Exception as e:
+            logger.debug(f"DNSRecon integration error: {e}")
+            streaming_ui.track_tool("dnsrecon", "Phase 2: Subdomain Discovery", "skipped", str(e))
         
         # Merge OSINT and active subdomain discoveries
         raw_subs.extend(list(osint_subdomains))
+        raw_subs.extend(supplemental_subdomains)
         raw_subs.append(target_domain)
         raw_subs = list(set(raw_subs))
         
@@ -954,7 +918,7 @@ Examples:
 
         if new_discoveries:
             # ========== PHASE 4: Port Scanning ==========
-            watchdog.update_progress(4, "Port Scanning")
+            smart_watchdog.record_phase_change(4, "Port Scanning")
             tui.set_phase(4)
             ai_phase_guidance(4, "Port Scanning", {"hosts": len(new_discoveries)})
             # Note: set_targets not available in DynamicTUI(len(new_discoveries))
@@ -972,7 +936,7 @@ Examples:
 
             if targets_with_ports:
                 # ========== PHASE 5: Live Host Probing ==========
-                watchdog.update_progress(5, "Live Host Probing")
+                smart_watchdog.record_phase_change(5, "Live Host Probing")
                 tui.set_phase(5)
                 ai_phase_guidance(5, "Live Host Probing", {"targets_with_ports": len(targets_with_ports)})
                 # Note: set_targets not available in DynamicTUI(len(targets_with_ports))
@@ -987,19 +951,53 @@ Examples:
                     
                     if raw_urls:
                         # ========== PHASE 6: Web Crawling ==========
-                        watchdog.update_progress(6, "Web Crawling")
+                        smart_watchdog.record_phase_change(6, "Web Crawling")
                         tui.set_phase(6)
                         ai_phase_guidance(6, "Web Crawling", {"live_hosts": len(raw_urls)})
                         # Note: set_targets not available in DynamicTUI(len(raw_urls))
                         
+                        # Track katana
+                        streaming_ui.track_tool("katana", "Phase 6: Web Crawling", "running")
                         tui.update_phase_details(6, f"[yellow]scanning {len(raw_urls)} hosts[/yellow]")
-                        deep_urls = crawler.crawl(raw_urls, cookie=cookie)
+                        deep_urls = crawler.crawl(raw_urls, cookie=cookie) or []
+                        streaming_ui.track_tool("katana", "Phase 6: Web Crawling", "complete", f"{len(deep_urls)} URLs")
+                        
+                        # Supplemental discovery from directory and parameter tools
+                        supplemental_urls = []
+                        
+                        # Track web discovery
+                        streaming_ui.track_tool("web-discovery", "Phase 6: Web Crawling", "running")
+                        tui.update_phase_details(6, "[yellow]running dir+param discovery[/yellow]")
+                        try:
+                            web_disc_urls = web_discovery_runner.discover_urls(raw_urls, target_domain, max_urls=4)
+                            supplemental_urls.extend(web_disc_urls)
+                            streaming_ui.track_tool("web-discovery", "Phase 6: Web Crawling", "complete", f"{len(web_disc_urls)} URLs")
+                        except Exception as e:
+                            logger.debug(f"Web discovery integration error: {e}")
+                            streaming_ui.track_tool("web-discovery", "Phase 6: Web Crawling", "skipped", str(e))
+                        
+                        # Track param discovery
+                        streaming_ui.track_tool("param-discovery", "Phase 6: Web Crawling", "running")
+                        try:
+                            param_seed_urls = list(set(raw_urls + deep_urls))
+                            param_urls = param_discovery_runner.discover_urls(
+                                target_domain,
+                                param_seed_urls,
+                                max_urls=6,
+                            )
+                            supplemental_urls.extend(param_urls)
+                            streaming_ui.track_tool("param-discovery", "Phase 6: Web Crawling", "complete", f"{len(param_urls)} URLs")
+                        except Exception as e:
+                            logger.debug(f"Param discovery integration error: {e}")
+                            streaming_ui.track_tool("param-discovery", "Phase 6: Web Crawling", "skipped", str(e))
+                        
+                        deep_urls = list(set(deep_urls + supplemental_urls))
                         
                         # Note: log_finding not available in DynamicTUI("urls", len(deep_urls))
                         tui.complete_phase(6, f"{len(deep_urls)} endpoints")
                         
                         # ========== PHASE 7: GraphQL/API Discovery ==========
-                        watchdog.update_progress(7, "GraphQL/API Discovery")
+                        smart_watchdog.record_phase_change(7, "GraphQL/API Discovery")
                         tui.set_phase(7)
                         ai_phase_guidance(7, "GraphQL/API Discovery", {"urls_sampled": min(len(raw_urls), 10)})
                         # Note: set_targets not available in DynamicTUI(len(raw_urls))
@@ -1023,13 +1021,27 @@ Examples:
                         tui.complete_phase(7, f"Found {len(graphql_findings)} API vulns" if graphql_findings else "No API vulns")
                         
                         # ========== PHASE 8: Historical Mining ==========
-                        watchdog.update_progress(8, "Historical Mining")
+                        smart_watchdog.record_phase_change(8, "Historical Mining")
                         tui.set_phase(8)
                         ai_phase_guidance(8, "Historical Mining", {"domain": target_domain})
                         # Note: set_targets not available in DynamicTUI(1)
                         
+                        # Track GAU
+                        streaming_ui.track_tool("gau", "Phase 8: Historical Mining", "running")
                         tui.update_phase_details(8, "[yellow]mining wayback[/yellow]")
-                        historical_raw = time_machine.fetch_history(target_domain)
+                        historical_raw = time_machine.fetch_history(target_domain) or []
+                        streaming_ui.track_tool("gau", "Phase 8: Historical Mining", "complete", f"{len(historical_raw)} URLs")
+                        
+                        # Track waybackurls
+                        streaming_ui.track_tool("waybackurls", "Phase 8: Historical Mining", "running")
+                        try:
+                            wayback_urls = waybackurls_runner.fetch_history(target_domain)
+                            historical_raw.extend(wayback_urls)
+                            historical_raw = list(set(historical_raw))
+                            streaming_ui.track_tool("waybackurls", "Phase 8: Historical Mining", "complete", f"{len(wayback_urls)} URLs")
+                        except Exception as e:
+                            logger.debug(f"Waybackurls integration error: {e}")
+                            streaming_ui.track_tool("waybackurls", "Phase 8: Historical Mining", "skipped", str(e))
                         
                         live_historical = []
                         
@@ -1044,6 +1056,22 @@ Examples:
                         
                         all_target_urls = list(set(raw_urls + deep_urls + live_historical))
                         
+                        # Track whatweb fingerprinting
+                        streaming_ui.track_tool("whatweb", "Web Fingerprinting", "running")
+                        try:
+                            web_fingerprints = whatweb_runner.fingerprint(all_target_urls, max_urls=8)
+                            if web_fingerprints:
+                                logger.info(
+                                    "WhatWeb fingerprinted %s URLs",
+                                    len(web_fingerprints),
+                                )
+                                streaming_ui.track_tool("whatweb", "Web Fingerprinting", "complete", f"{len(web_fingerprints)} techs")
+                            else:
+                                streaming_ui.track_tool("whatweb", "Web Fingerprinting", "complete", "0 techs")
+                        except Exception as e:
+                            logger.debug(f"WhatWeb integration error: {e}")
+                            streaming_ui.track_tool("whatweb", "Web Fingerprinting", "skipped", str(e))
+                        
                         # --- LOCAL DEMO TARGET OVERRIDE ---
                         if "127.0.0.1" in target_domain:
                             all_target_urls = [
@@ -1053,7 +1081,7 @@ Examples:
                             ]
 
                         # ========== PHASE 9: IDOR Testing ==========
-                        watchdog.update_progress(9, "IDOR Testing")
+                        smart_watchdog.record_phase_change(9, "IDOR Testing")
                         tui.set_phase(9)
                         ai_phase_guidance(9, "IDOR Testing", {"targets_for_idor": min(len(all_target_urls), 50)})
                         # Note: set_targets not available in DynamicTUI(len(all_target_urls))
@@ -1080,28 +1108,88 @@ Examples:
                         tui.complete_phase(9, f"Found {len(idor_findings)} IDORs" if idor_findings else "No IDORs")
 
                         # ========== PHASE 10: Vulnerability Scanning ==========
-                        watchdog.update_progress(10, "Vulnerability Scanning")
+                        smart_watchdog.record_phase_change(10, "Vulnerability Scanning")
                         tui.set_phase(10)
                         ai_phase_guidance(10, "Vulnerability Scanning", {"nuclei_targets": len(all_target_urls)})
                         # Note: set_targets not available in DynamicTUI(len(all_target_urls))
                         
+                        # Track nuclei
+                        streaming_ui.track_tool("nuclei", "Phase 10: Vuln Scanning", "running")
                         tui.update_phase_details(10, f"[yellow]launching nuclei on {len(all_target_urls)} targets[/yellow]")
                         if RICH_AVAILABLE:
                             console.print(f"\n[bold yellow]🎯 PHASE 10: Launching Nuclei Attack on {len(all_target_urls)} targets...[/bold yellow]")
 
                         def nuclei_progress_callback(stats):
-                            """Update existing live tracker details only (no nested Live panels)."""
+                            """Update TUI and report activity to smart watchdog."""
                             sent = stats.get("requests_sent", 0)
                             total = stats.get("requests_total", 0)
                             vulns = stats.get("vulnerabilities", 0)
                             pct = int((sent / total) * 100) if total > 0 else 0
                             tui.update_phase_details(10, f"[yellow]{pct}% · {sent}/{total} · {vulns} vulns[/yellow]")
+                            
+                            # Report activity to smart watchdog for AI-based stuck detection
+                            if smart_watchdog:
+                                smart_watchdog.record_request_activity(sent)
                         
                         vulnerabilities = scanner.run_scan(
                             all_target_urls, 
                             cookie=cookie,
                             progress_callback=nuclei_progress_callback
                         )
+                        streaming_ui.track_tool("nuclei", "Phase 10: Vuln Scanning", "complete", f"{len(vulnerabilities)} findings")
+                        
+                        # Track supplemental scanners
+                        streaming_ui.track_tool("supplemental-scanners", "Phase 10: Vuln Scanning", "running")
+                        supplemental_findings = []
+                        try:
+                            supplemental_findings = supplemental_scanner.scan(
+                                urls=all_target_urls,
+                                target_domain=target_domain,
+                                fingerprints=web_fingerprints,
+                            )
+                            streaming_ui.track_tool("supplemental-scanners", "Phase 10: Vuln Scanning", "complete", f"{len(supplemental_findings)} findings")
+                        except Exception as e:
+                            logger.debug(f"Supplemental scanner integration error: {e}")
+                            streaming_ui.track_tool("supplemental-scanners", "Phase 10: Vuln Scanning", "skipped", str(e))
+                        
+                        if supplemental_findings:
+                            supplemental_lines = findings_to_nuclei_lines(supplemental_findings)
+                            vulnerabilities.extend(supplemental_lines)
+                            logger.info(
+                                "Supplemental scanners added %s findings",
+                                len(supplemental_lines),
+                            )
+                        if graphql_findings:
+                            graphql_lines = findings_to_nuclei_lines([
+                                {
+                                    "tool": "graphql-api",
+                                    "name": finding.get("type", "GraphQL/API finding"),
+                                    "severity": str(finding.get("severity", "medium")).lower(),
+                                    "url": finding.get("endpoint", ""),
+                                    "description": finding.get("description", ""),
+                                    "evidence": finding.get("evidence", ""),
+                                }
+                                for finding in graphql_findings
+                            ])
+                            vulnerabilities.extend(graphql_lines)
+                        if idor_findings:
+                            idor_lines = findings_to_nuclei_lines([
+                                {
+                                    "tool": "idor",
+                                    "name": finding.get("type", "IDOR finding"),
+                                    "severity": str(finding.get("severity", "high")).lower(),
+                                    "url": finding.get("vulnerable_url", finding.get("url", "")),
+                                    "description": finding.get("description", ""),
+                                    "evidence": finding.get("evidence", ""),
+                                }
+                                for finding in idor_findings
+                            ])
+                            vulnerabilities.extend(idor_lines)
+                        
+                        # ========== DISPLAY TOOL EXECUTION SUMMARY ==========
+                        if RICH_AVAILABLE:
+                            console.print("\n")
+                            streaming_ui.show_tool_summary()
                         
                         # Show final results
                         if RICH_AVAILABLE:

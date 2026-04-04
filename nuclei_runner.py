@@ -200,13 +200,37 @@ class NucleiRunner:
         file_size = os.path.getsize(target_file)
         logger.info(f"[NUCLEI DIAGNOSTIC] Target file written: {file_size} bytes")
         
-        # --- PHASE 1: PRIMARY SCAN ---
+        # --- PHASE 1: PRIMARY SCAN WITH ADAPTIVE RATE LIMITING ---
         base_cmd = ["nuclei", "-l", target_file, "-j", "-o", output_file, "-stats", "-silent"]
         scan_profile = os.getenv("TRISHUL_SCAN_PROFILE", "default").strip().lower()
-        if scan_profile in {"cdn-safe", "gentle", "safe"}:
-            # Safe/compliant profile for CDN-protected targets: lower request burst and concurrency.
-            base_cmd.extend(["-rl", "10", "-c", "8", "-timeout", "10", "-retries", "1"])
-            logger.info("[NUCLEI DIAGNOSTIC] Using CDN-safe scan profile (-rl 10 -c 8 -timeout 10 -retries 1)")
+        
+        # Initialize adaptive rate limiter based on profile
+        use_adaptive = os.getenv("TRISHUL_ADAPTIVE_RATE", "true").lower() == "true"
+        
+        if use_adaptive:
+            # NEW: Adaptive rate limiting (safe + fast)
+            logger.info("🎯 Enabling adaptive rate limiting (safe + fast mode)")
+            
+            if scan_profile in {"cdn-safe", "gentle", "safe"}:
+                self.adaptive_limiter = create_adaptive_limiter("safe")
+            elif scan_profile == "aggressive":
+                self.adaptive_limiter = create_adaptive_limiter("aggressive")
+            else:
+                self.adaptive_limiter = create_adaptive_limiter("balanced")
+            
+            # Get initial rate from adaptive limiter
+            rate_limit, concurrency = self.adaptive_limiter.get_nuclei_flags()
+            base_cmd.extend(["-rl", rate_limit, "-c", concurrency, "-timeout", "10", "-retries", "1"])
+            logger.info(
+                f"[ADAPTIVE] Starting with {rate_limit} req/s, {concurrency} concurrency "
+                f"(will auto-adjust based on server health)"
+            )
+        else:
+            # OLD: Static rate limiting
+            if scan_profile in {"cdn-safe", "gentle", "safe"}:
+                base_cmd.extend(["-rl", "10", "-c", "8", "-timeout", "10", "-retries", "1"])
+                logger.info("[NUCLEI DIAGNOSTIC] Using static CDN-safe profile (-rl 10 -c 8)")
+            
         if cookie:
             # SECURITY: Strip newlines/carriage returns to prevent header injection
             safe_cookie = cookie.replace('\n', '').replace('\r', '').replace('\t', '')
@@ -235,11 +259,12 @@ class NucleiRunner:
         error_count = 0
         waf_triggered = False
         
-        # Monitor progress in separate thread
+        # Monitor progress in separate thread (with adaptive rate updates)
         def monitor_progress():
             logger.info("[NUCLEI DIAGNOSTIC] Progress monitoring thread started")
             last_output_time = time.time()
             last_file_size = 0
+            last_rate_update = time.time()
             
             while self.is_scanning and process.poll() is None:
                 # Check for heartbeat via output file growth
@@ -257,6 +282,17 @@ class NucleiRunner:
                     last_output_time = time.time()  # Reset to avoid spam
                 
                 self._calculate_metrics()
+                
+                # Update adaptive rate limiter status
+                if self.adaptive_limiter and time.time() - last_rate_update > 10:
+                    status = self.adaptive_limiter.get_status()
+                    logger.info(
+                        f"[ADAPTIVE] Rate: {status['current_rate']} req/s, "
+                        f"AvgTime: {status['avg_response_time_ms']:.0f}ms, "
+                        f"Success: {status['success_rate']:.1%}"
+                    )
+                    last_rate_update = time.time()
+                
                 if progress_callback:
                     progress_callback(self.get_progress_stats())
                 time.sleep(0.5)  # Update twice per second

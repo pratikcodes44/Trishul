@@ -37,6 +37,10 @@ pyyaml>=6.0
 # OSINT Dependencies
 dnspython>=2.4.0  # For DNS analysis
 
+# Optional CLI wrappers used by extended_tools.py
+arjun>=2.2.7
+dirsearch>=0.4.3
+
 # Email Notifications  
 ijson>=3.2.0  # Streaming JSON parser for large Nuclei results
 

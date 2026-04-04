@@ -11,6 +11,29 @@ python3 --version || { echo "❌ Python 3 required"; exit 1; }
 echo "📦 Installing dependencies..."
 pip3 install -r requirements.txt --quiet
 
+echo "🔧 Installing external recon/scanner tools..."
+if command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get update -qq
+  sudo apt-get install -y dnsrecon nikto sqlmap gobuster feroxbuster
+fi
+
+if command -v go >/dev/null 2>&1; then
+  export GOPATH="${GOPATH:-$HOME/go}"
+  export PATH="$PATH:$GOPATH/bin"
+  go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+  go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+  go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+  go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+  go install -v github.com/lc/gau/v2/cmd/gau@latest
+  go install -v github.com/tomnomnom/waybackurls@latest
+  go install -v github.com/hahwul/dalfox/v2@latest
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  npm install -g @0xsha/paramspider
+fi
+
 echo ""
 echo "✅ Setup complete!"
 echo ""
