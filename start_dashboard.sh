@@ -1,18 +1,20 @@
 #!/bin/bash
 
-# 🎨 Start Dashboard for Demo
-# This script properly starts the Streamlit dashboard
+# 🎨 Start Frontend for Demo
+# This script starts the unified Next.js frontend dashboard pages
 
-echo "🎨 Starting Trishul AI Dashboard..."
+echo "🎨 Starting Trishul Frontend..."
 echo ""
 
 cd "$(dirname "$0")" || exit
 
 echo "📍 Location: $(pwd)"
-echo "🔧 Starting on http://localhost:8501"
+echo "🔧 Starting on http://localhost:3000"
 echo ""
 echo "Press Ctrl+C to stop"
 echo ""
 
-# Start streamlit
-streamlit run ai_dashboard.py --server.port 8501 --server.address 0.0.0.0
+cd frontend || exit
+
+# Start Next.js dashboard
+npm run dev -- --port 3000

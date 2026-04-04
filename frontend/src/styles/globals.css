@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-base: #f5f5f7;
+  --color-surface: #e5e5ea;
+  --color-strong: #1d1d1f;
+  --color-border: #d2d2d7;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  html,
+  body {
+    @apply m-0 p-0;
+  }
+
+  body {
+    @apply overflow-x-hidden antialiased;
+    font-family: var(--font-inter), sans-serif;
+    background-color: var(--color-base);
+    color: var(--color-strong);
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    outline: 2px solid #1d1d1f;
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-inter), sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-base);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #b5b5bc;
+    border-radius: 999px;
+  }
+}
+
+@layer utilities {
+  .surface-card {
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .text-muted {
+    color: #6e6e73;
+  }
+}
