@@ -83,8 +83,23 @@ class SmartWatchdog:
         if phase_num != self.alert_sent_for_phase:
             self.alert_sent_for_phase = -1
             self.zero_activity_duration = 0  # Reset zero activity counter
+        
+        # Mark activity (phase transition counts as activity)
+        self.last_activity_time = time.time()
+    
+    def record_phase_change(self, phase_num: int, phase_name: str = ""):
+        """
+        Alias for update_progress() for backward compatibility.
+        Records when phases change during the attack pipeline.
+        
+        Args:
+            phase_num: Current phase number (1-10)
+            phase_name: Optional phase name (e.g., "Subdomain Discovery")
+        """
+        self.update_progress(phase_num, phase_name)
     
     def record_request_activity(self, request_count: int):
+
         """
         Record current request count from scanning tools.
         Called by nuclei progress callback or other scanners.
