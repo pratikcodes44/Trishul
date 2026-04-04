@@ -6,6 +6,7 @@ import os
 import time
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from adaptive_rate_limiter import create_adaptive_limiter
 
 logger = logging.getLogger(__name__)
@@ -173,15 +174,106 @@ class NucleiRunner:
             'target_urls': self.target_urls if hasattr(self, 'target_urls') else []
         }
 
-    def run_scan(self, target_urls, cookie=None, progress_callback=None):
-        """
-        Run Nuclei scan with real-time progress tracking.
-        
-        Args:
-            target_urls: List of URLs to scan
-            cookie: Optional cookie header
-            progress_callback: Function to call with progress updates (receives stats dict)
-        """
+    def _split_target_chunks(self, target_urls, chunk_count):
+        if not target_urls:
+            return []
+        bounded_chunks = max(1, min(int(chunk_count), len(target_urls)))
+        buckets = [[] for _ in range(bounded_chunks)]
+        for index, url in enumerate(target_urls):
+            buckets[index % bounded_chunks].append(url)
+        return [bucket for bucket in buckets if bucket]
+
+    def _recommend_adaptive_workers(self, chunk_count, total_targets):
+        max_workers = max(1, int(os.getenv("TRISHUL_NUCLEI_MAX_WORKERS", "5")))
+        max_allowed = max(1, min(chunk_count, max_workers))
+
+        cpu_count = os.cpu_count() or 2
+        load_avg = 0.0
+        if hasattr(os, "getloadavg"):
+            try:
+                load_avg = float(os.getloadavg()[0])
+            except OSError:
+                load_avg = 0.0
+
+        # Local heuristic baseline when AI is unavailable.
+        if cpu_count > 0 and load_avg / cpu_count >= 0.9:
+            heuristic = 1
+        elif total_targets >= 220:
+            heuristic = min(4, max_allowed)
+        elif total_targets >= 120:
+            heuristic = min(3, max_allowed)
+        elif total_targets >= 60:
+            heuristic = min(2, max_allowed)
+        else:
+            heuristic = 1
+
+        prompt = (
+            "Decide chunk worker count for nuclei scan.\n"
+            "Return ONLY one integer.\n"
+            f"Chunks: {chunk_count}\n"
+            f"Targets: {total_targets}\n"
+            f"CPU cores: {cpu_count}\n"
+            f"Load average: {load_avg:.2f}\n"
+            f"Max allowed workers: {max_allowed}\n"
+            "Prefer stability when uncertain."
+        )
+        ai_text = None
+        if self.model_name and self.ai_url:
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": False,
+                "system": "Output only a single integer.",
+                "options": {
+                    "temperature": 0.0,
+                    "num_predict": 6,
+                },
+            }
+            try:
+                response = requests.post(self.ai_url, json=payload, timeout=8)
+                if response.status_code == 200:
+                    ai_text = response.json().get("response", "").strip()
+            except requests.RequestException:
+                ai_text = None
+        if ai_text:
+            match = re.search(r"\d+", ai_text)
+            if match:
+                ai_workers = int(match.group(0))
+                if ai_workers >= 1:
+                    return min(max_allowed, ai_workers)
+
+        return max(1, heuristic)
+
+    def _select_chunk_workers(self, mode, chunk_count, total_targets):
+        max_workers = max(1, int(os.getenv("TRISHUL_NUCLEI_MAX_WORKERS", "5")))
+        max_allowed = max(1, min(chunk_count, max_workers))
+        mode_normalized = (mode or "adaptive").strip().lower()
+        if mode_normalized == "sequential":
+            return 1
+        if mode_normalized == "parallel":
+            return max_allowed
+        return self._recommend_adaptive_workers(chunk_count, total_targets)
+
+    def _run_chunked_scan(self, target_urls, cookie=None, progress_callback=None, chunk_mode="adaptive", chunk_count=4):
+        chunks = self._split_target_chunks(target_urls, chunk_count)
+        if len(chunks) <= 1:
+            return self.run_scan(
+                target_urls,
+                cookie=cookie,
+                progress_callback=progress_callback,
+                disable_chunking=True,
+                file_suffix="single",
+            )
+
+        workers = self._select_chunk_workers(chunk_mode, len(chunks), len(target_urls))
+        logger.info(
+            "[NUCLEI CHUNK] Starting chunked scan mode=%s chunks=%s workers=%s targets=%s",
+            chunk_mode,
+            len(chunks),
+            workers,
+            len(target_urls),
+        )
+
         self.target_urls = target_urls
         self.start_time = time.time()
         self.is_scanning = True
@@ -190,9 +282,181 @@ class NucleiRunner:
         self.requests_total = 0
         self.vulnerabilities_found = 0
         self.current_template = ""
+
+        aggregate_lock = threading.Lock()
+        chunk_stats = {
+            index: {
+                "status": "pending",
+                "requests_sent": 0,
+                "requests_total": 0,
+                "vulnerabilities": 0,
+                "current_template": "",
+                "target_count": len(chunk),
+                "last_update": time.time(),
+            }
+            for index, chunk in enumerate(chunks)
+        }
+        findings_by_chunk = {index: [] for index in range(len(chunks))}
+
+        def emit_progress():
+            if not progress_callback:
+                return
+            with aggregate_lock:
+                total_sent = sum(int(item["requests_sent"]) for item in chunk_stats.values())
+                total_total = sum(int(item["requests_total"]) for item in chunk_stats.values())
+                total_vulns = sum(int(item["vulnerabilities"]) for item in chunk_stats.values())
+                templates_loaded = sum(
+                    int(item["requests_total"] / item["target_count"])
+                    for item in chunk_stats.values()
+                    if int(item["target_count"]) > 0 and int(item["requests_total"]) > 0
+                )
+                completed_chunks = sum(1 for item in chunk_stats.values() if item["status"] == "completed")
+                active_chunks = sum(1 for item in chunk_stats.values() if item["status"] == "running")
+                current_templates = [str(item["current_template"]) for item in chunk_stats.values() if item["current_template"]]
+
+                self.requests_sent = total_sent
+                self.requests_total = total_total
+                self.vulnerabilities_found = total_vulns
+                self.templates_loaded = templates_loaded
+                self.current_template = current_templates[0] if current_templates else ""
+                self._calculate_metrics()
+
+                aggregate_stats = self.get_progress_stats()
+                aggregate_stats.update(
+                    {
+                        "chunk_mode": chunk_mode,
+                        "total_chunks": len(chunks),
+                        "completed_chunks": completed_chunks,
+                        "active_chunks": active_chunks,
+                        "workers": workers,
+                        "chunk_statuses": {
+                            str(idx): {
+                                "status": item["status"],
+                                "requests_sent": item["requests_sent"],
+                                "requests_total": item["requests_total"],
+                                "vulnerabilities": item["vulnerabilities"],
+                                "target_count": item["target_count"],
+                            }
+                            for idx, item in chunk_stats.items()
+                        },
+                    }
+                )
+            progress_callback(aggregate_stats)
+
+        def run_single_chunk(index, urls):
+            runner = NucleiRunner()
+            runner.error_threshold = self.error_threshold
+            with aggregate_lock:
+                chunk_stats[index]["status"] = "running"
+                chunk_stats[index]["last_update"] = time.time()
+            emit_progress()
+
+            def chunk_progress(stats):
+                with aggregate_lock:
+                    chunk_stats[index]["status"] = "running"
+                    chunk_stats[index]["requests_sent"] = int(stats.get("requests_sent", 0))
+                    chunk_stats[index]["requests_total"] = int(stats.get("requests_total", 0))
+                    chunk_stats[index]["vulnerabilities"] = int(stats.get("vulnerabilities", 0))
+                    chunk_stats[index]["current_template"] = str(stats.get("current_template", ""))
+                    chunk_stats[index]["last_update"] = time.time()
+                emit_progress()
+
+            results = runner.run_scan(
+                urls,
+                cookie=cookie,
+                progress_callback=chunk_progress,
+                disable_chunking=True,
+                file_suffix=f"chunk_{index}",
+            )
+            with aggregate_lock:
+                chunk_stats[index]["status"] = "completed"
+                chunk_stats[index]["requests_sent"] = max(
+                    chunk_stats[index]["requests_sent"],
+                    int(runner.requests_sent),
+                )
+                chunk_stats[index]["requests_total"] = max(
+                    chunk_stats[index]["requests_total"],
+                    int(runner.requests_total),
+                )
+                chunk_stats[index]["vulnerabilities"] = len(results)
+                chunk_stats[index]["last_update"] = time.time()
+                findings_by_chunk[index] = results
+            emit_progress()
+
+        try:
+            if workers <= 1:
+                for chunk_index, chunk_urls in enumerate(chunks):
+                    run_single_chunk(chunk_index, chunk_urls)
+            else:
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    futures = {
+                        executor.submit(run_single_chunk, chunk_index, chunk_urls): chunk_index
+                        for chunk_index, chunk_urls in enumerate(chunks)
+                    }
+                    for future in as_completed(futures):
+                        chunk_index = futures[future]
+                        try:
+                            future.result()
+                        except Exception as exc:
+                            logger.error("[NUCLEI CHUNK] Chunk %s failed: %s", chunk_index, exc)
+                            with aggregate_lock:
+                                chunk_stats[chunk_index]["status"] = "failed"
+                                chunk_stats[chunk_index]["last_update"] = time.time()
+                            emit_progress()
+                            raise
+        finally:
+            self.is_scanning = False
+            emit_progress()
+
+        all_findings = []
+        for chunk_index in sorted(findings_by_chunk.keys()):
+            all_findings.extend(findings_by_chunk[chunk_index])
+        # Preserve deterministic order while dropping duplicate lines.
+        all_findings = list(dict.fromkeys(all_findings))
+        self.vulnerabilities_found = len(all_findings)
+        return all_findings
+
+    def run_scan(self, target_urls, cookie=None, progress_callback=None, disable_chunking=False, file_suffix=""):
+        """
+        Run Nuclei scan with real-time progress tracking.
         
-        target_file = "live_targets.txt"
-        output_file = "nuclei_results.json"
+        Args:
+            target_urls: List of URLs to scan
+            cookie: Optional cookie header
+            progress_callback: Function to call with progress updates (receives stats dict)
+        """
+        chunk_mode = os.getenv("TRISHUL_NUCLEI_CHUNK_MODE", "adaptive").strip().lower()
+        if chunk_mode not in {"single", "sequential", "parallel", "adaptive"}:
+            chunk_mode = "adaptive"
+        try:
+            chunk_count = int(os.getenv("TRISHUL_NUCLEI_CHUNK_COUNT", "4"))
+        except ValueError:
+            chunk_count = 4
+        chunk_count = max(2, min(chunk_count, 8))
+
+        if not disable_chunking and chunk_mode != "single" and len(target_urls) >= chunk_count * 2:
+            return self._run_chunked_scan(
+                target_urls=target_urls,
+                cookie=cookie,
+                progress_callback=progress_callback,
+                chunk_mode=chunk_mode,
+                chunk_count=chunk_count,
+            )
+
+        self.target_urls = target_urls
+        self.start_time = time.time()
+        self.is_scanning = True
+        self.templates_loaded = 0
+        self.requests_sent = 0
+        self.requests_total = 0
+        self.vulnerabilities_found = 0
+        self.current_template = ""
+
+        safe_suffix = ""
+        if file_suffix:
+            safe_suffix = "_" + re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(file_suffix))
+        target_file = f"live_targets{safe_suffix}.txt"
+        output_file = f"nuclei_results{safe_suffix}.json"
         
         logger.info(f"[NUCLEI DIAGNOSTIC] Writing {len(target_urls)} URLs to {target_file}")
         # Use buffered writing for large URL lists

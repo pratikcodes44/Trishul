@@ -4,6 +4,8 @@ import sys
 import os
 import time
 import threading
+import json
+import signal
 from datetime import datetime
 from pathlib import Path
 
@@ -166,6 +168,27 @@ PIPELINE_PHASES = [
     {"name": "IDOR Testing", "tool": "IDORTester", "icon": "🔓"},
     {"name": "Vulnerability Scan", "tool": "Nuclei", "icon": "🎯"},
 ]
+
+PHASE_PROGRESS_MAP = {
+    1: 10,
+    2: 20,
+    3: 30,
+    4: 40,
+    5: 50,
+    6: 60,
+    7: 70,
+    8: 80,
+    9: 90,
+    10: 95,
+}
+
+
+def _write_runtime_json(path_value: str, payload: dict):
+    if not path_value:
+        return
+    path = Path(path_value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 class AttackProgressTracker:
     """Single-live-display progress tracker with a clean Copilot-like layout."""
@@ -468,6 +491,86 @@ def display_time_estimate(target_domain, is_demo=False):
     choice = input("[y/N]: ").strip().lower()
     return choice == 'y'
 
+
+def collect_partial_vulnerability_lines(context: dict) -> list[str]:
+    """Collect vulnerability-like findings from completed phases into report-ready lines."""
+    combined_lines: list[str] = []
+
+    def _extend_from_findings(findings: list[dict]):
+        if not findings:
+            return
+        converted = findings_to_nuclei_lines(findings)
+        if converted:
+            combined_lines.extend(converted)
+
+    existing_vulns = context.get("vulnerabilities")
+    if isinstance(existing_vulns, list):
+        string_lines = [item for item in existing_vulns if isinstance(item, str) and item.strip()]
+        dict_lines = [item for item in existing_vulns if isinstance(item, dict)]
+        if string_lines:
+            combined_lines.extend(string_lines)
+        if dict_lines:
+            _extend_from_findings(dict_lines)
+
+    supplemental_findings = context.get("supplemental_findings")
+    if isinstance(supplemental_findings, list):
+        supplemental_dicts = [item for item in supplemental_findings if isinstance(item, dict)]
+        _extend_from_findings(supplemental_dicts)
+
+    graphql_findings = context.get("graphql_findings")
+    if isinstance(graphql_findings, list) and graphql_findings:
+        _extend_from_findings([
+            {
+                "tool": "graphql-api",
+                "name": finding.get("type", "GraphQL/API finding"),
+                "severity": str(finding.get("severity", "medium")).lower(),
+                "url": finding.get("endpoint", ""),
+                "description": finding.get("description", ""),
+                "evidence": finding.get("evidence", ""),
+            }
+            for finding in graphql_findings
+            if isinstance(finding, dict)
+        ])
+
+    idor_findings = context.get("idor_findings")
+    if isinstance(idor_findings, list) and idor_findings:
+        _extend_from_findings([
+            {
+                "tool": "idor",
+                "name": finding.get("type", "IDOR finding"),
+                "severity": str(finding.get("severity", "high")).lower(),
+                "url": finding.get("vulnerable_url", finding.get("url", "")),
+                "description": finding.get("description", ""),
+                "evidence": finding.get("evidence", ""),
+            }
+            for finding in idor_findings
+            if isinstance(finding, dict)
+        ])
+
+    takeover_findings = context.get("takeover_findings")
+    if isinstance(takeover_findings, list) and takeover_findings:
+        _extend_from_findings([
+            {
+                "tool": "subdomain-takeover",
+                "name": f"Subdomain takeover risk ({finding.get('provider', 'unknown provider')})",
+                "severity": "high",
+                "url": f"http://{finding.get('subdomain', '')}".strip(),
+                "description": finding.get("reason", "Potential dangling DNS / takeover condition detected."),
+                "evidence": finding.get("cname", ""),
+            }
+            for finding in takeover_findings
+            if isinstance(finding, dict)
+        ])
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for line in combined_lines:
+        if line in seen:
+            continue
+        seen.add(line)
+        deduped.append(line)
+    return deduped
+
 def main():
     parser = argparse.ArgumentParser(
         description="Project Trishul - EASM & Bug Bounty Pipeline",
@@ -494,7 +597,97 @@ Examples:
     parser.add_argument("--max-idor-tests", type=int, default=20, help="Max IDOR fuzzing per URL (default: 20)")
     parser.add_argument("--no-audit-log", action="store_true", help="Disable audit logging (not recommended)")
     parser.add_argument("--skip-osint", action="store_true", help="Skip OSINT phase (faster, relies on subfinder only)")
+    parser.add_argument("--api-triggered", action="store_true", help="Run in non-interactive API mode")
     args = parser.parse_args()
+
+    api_mode = args.api_triggered or os.getenv("TRISHUL_API_MODE") == "1"
+    runtime_scan_id = os.getenv("TRISHUL_RUNTIME_SCAN_ID", "")
+    runtime_status_file = os.getenv("TRISHUL_RUNTIME_STATUS_FILE", "")
+    runtime_summary_file = os.getenv("TRISHUL_RUNTIME_SUMMARY_FILE", "")
+    runtime_state = {
+        "scan_id": runtime_scan_id,
+        "status": "queued",
+        "progress": 0,
+        "current_phase": 0,
+        "current_phase_name": "Queued",
+        "current_tool": "bootstrap",
+        "runtime_pid": os.getpid(),
+        "error": "",
+        "activity_message": "Queued for execution",
+        "activity_data": {},
+        "results": {},
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    reattack_mode = os.getenv("TRISHUL_REATTACK_MODE", "full_rescan").strip().lower()
+    if reattack_mode not in {"full_rescan", "incremental"}:
+        logger.warning("Invalid TRISHUL_REATTACK_MODE=%s, falling back to full_rescan", reattack_mode)
+        reattack_mode = "full_rescan"
+    partial_report_on_interrupt = os.getenv("TRISHUL_PARTIAL_REPORT_ALWAYS", "1").strip().lower() not in {"0", "false", "no"}
+
+    def runtime_update(
+        *,
+        status: str | None = None,
+        phase_num: int | None = None,
+        phase_name: str | None = None,
+        current_tool: str | None = None,
+        progress: int | None = None,
+        error: str | None = None,
+        activity_message: str | None = None,
+        activity_data: dict | None = None,
+        results: dict | None = None,
+        summary: bool = False,
+    ):
+        if status is not None:
+            runtime_state["status"] = status
+        if phase_num is not None:
+            runtime_state["current_phase"] = phase_num
+            if progress is None:
+                runtime_state["progress"] = PHASE_PROGRESS_MAP.get(phase_num, runtime_state["progress"])
+        if phase_name is not None:
+            runtime_state["current_phase_name"] = phase_name
+        if current_tool is not None:
+            runtime_state["current_tool"] = current_tool
+        if progress is not None:
+            runtime_state["progress"] = max(0, min(100, progress))
+        if error is not None:
+            runtime_state["error"] = error
+        if activity_message is not None:
+            runtime_state["activity_message"] = activity_message
+        elif phase_name is not None:
+            runtime_state["activity_message"] = f"{phase_name} in progress"
+        if activity_data is not None:
+            runtime_state["activity_data"] = activity_data
+        elif phase_name is not None:
+            runtime_state["activity_data"] = {}
+        if results is not None:
+            runtime_state["results"] = results
+        runtime_state["updated_at"] = datetime.utcnow().isoformat()
+        _write_runtime_json(runtime_status_file, runtime_state)
+        if summary:
+            _write_runtime_json(runtime_summary_file, runtime_state)
+
+    if api_mode:
+        args.yes = True
+        runtime_update(
+            status="running",
+            phase_num=0,
+            phase_name="Initializing",
+            current_tool="bootstrap",
+            progress=1,
+            activity_message="Preparing runtime and loading scan pipeline",
+            activity_data={"stage": "bootstrap", "reattack_mode": reattack_mode},
+        )
+
+        def _handle_runtime_cancel(signum, _frame):
+            runtime_update(
+                status="cancelled",
+                error=f"Interrupted by signal {signum}",
+                summary=True,
+            )
+            raise KeyboardInterrupt()
+
+        signal.signal(signal.SIGTERM, _handle_runtime_cancel)
+        signal.signal(signal.SIGINT, _handle_runtime_cancel)
 
     log_level_name = os.getenv("TRISHUL_LOG_LEVEL", "WARNING").upper()
     log_level = getattr(logging, log_level_name, logging.WARNING)
@@ -513,7 +706,7 @@ Examples:
     print_banner()
     
     # Show legal disclaimer (REQUIRED)
-    if not args.demo:
+    if not args.demo and not api_mode:
         show_legal_disclaimer()
     
     # Initialize scope validator
@@ -521,7 +714,7 @@ Examples:
     if args.scope:
         scope_validator = ScopeValidator(args.scope, strict_mode=True)
         print(f"✓ Scope validation enabled: {args.scope}\n")
-    elif not args.demo:
+    elif not args.demo and not api_mode:
         print("⚠️  WARNING: No scope file provided!")
         print("Use --scope flag to validate targets against authorized scope.")
         print("Example: python main.py -d target.com --scope scope.txt\n")
@@ -682,6 +875,11 @@ Examples:
         logger.info("[DIAGNOSTIC] Auto-confirmed with --yes flag")
 
     logger.info("[DIAGNOSTIC] Confirmation complete. Initializing attack...")
+    logger.info(
+        "Re-attack mode: %s | Partial report on interruption/failure: %s",
+        reattack_mode,
+        partial_report_on_interrupt,
+    )
     if RICH_AVAILABLE:
         console.print(f"\n[green]✅ Weapons authorized. Initiating strike on: [bold]{target_domain}[/bold][/green]\n")
     else:
@@ -749,7 +947,9 @@ Examples:
                 'read_only': read_only,
                 'request_delay': args.request_delay,
                 'max_idor_tests': args.max_idor_tests,
-                'scope_file': args.scope if args.scope else None
+                'scope_file': args.scope if args.scope else None,
+                'reattack_mode': reattack_mode,
+                'partial_report_on_interrupt': partial_report_on_interrupt,
             }
         )
 
@@ -810,6 +1010,12 @@ Examples:
         # ========== PHASE 1: OSINT RECONNAISSANCE ==========
         logger.info("[DIAGNOSTIC] Entering Phase 1: OSINT Reconnaissance")
         smart_watchdog.record_phase_change(1, "OSINT Reconnaissance")
+        runtime_update(
+            status="running",
+            phase_num=1,
+            phase_name="OSINT Reconnaissance",
+            current_tool="osint",
+        )
         ai_phase_guidance(1, "OSINT Reconnaissance", {"target": target_domain, "skip_osint": args.skip_osint})
         osint_subdomains = set()
         
@@ -852,6 +1058,14 @@ Examples:
         
         # ========== PHASE 2: Subdomain Discovery (Active) ==========
         smart_watchdog.record_phase_change(2, "Subdomain Discovery")
+        runtime_update(
+            status="running",
+            phase_num=2,
+            phase_name="Subdomain Discovery",
+            current_tool="subfinder",
+            activity_message=f"Subdomain discovery running ({reattack_mode})",
+            activity_data={"phase": 2, "phase_name": "Subdomain Discovery", "reattack_mode": reattack_mode},
+        )
         tui.set_phase(2)
         ai_phase_guidance(2, "Subdomain Discovery", {"target": target_domain})
         # Update target count in TUI if method exists (Note: DynamicTUI may not have set_targets)
@@ -892,19 +1106,31 @@ Examples:
         raw_subs = list(set(raw_subs))
         
         in_scope = [s for s in raw_subs if scope_checker.is_in_scope(s, target_domain)]
-        new_discoveries = asset_manager.insert_and_diff(in_scope)
-        # Note: log_finding not available in DynamicTUI("subdomains", len(new_discoveries))
-        tui.complete_phase(2, f"Found {len(new_discoveries)} new")
+        all_discoveries = sorted(set(in_scope))
+        new_discoveries = asset_manager.insert_and_diff(all_discoveries)
+        scan_targets = all_discoveries if reattack_mode == "full_rescan" else new_discoveries
+        # Note: log_finding not available in DynamicTUI("subdomains", len(scan_targets))
+        tui.complete_phase(
+            2,
+            f"{len(scan_targets)} targets selected ({len(new_discoveries)} new • mode {reattack_mode})",
+        )
 
         # ========== PHASE 2.5: Subdomain Takeover Check ==========
-        if new_discoveries:
+        if scan_targets:
+            smart_watchdog.record_phase_change(3, "Subdomain Takeover Check")
+            runtime_update(
+                status="running",
+                phase_num=3,
+                phase_name="Subdomain Takeover Check",
+                current_tool="takeover-validator",
+            )
             tui.set_phase(3)
-            ai_phase_guidance(3, "Subdomain Takeover Check", {"new_discoveries": len(new_discoveries)})
-            # Note: set_targets not available in DynamicTUI(len(new_discoveries))
+            ai_phase_guidance(3, "Subdomain Takeover Check", {"scan_targets": len(scan_targets), "mode": reattack_mode})
+            # Note: set_targets not available in DynamicTUI(len(scan_targets))
             
-            tui.update_phase_details(3, f"[yellow]checking {len(new_discoveries)} hosts[/yellow]")
+            tui.update_phase_details(3, f"[yellow]checking {len(scan_targets)} hosts[/yellow]")
             takeover_validator = SubdomainTakeoverValidator()
-            takeover_findings = takeover_validator.check_subdomains(new_discoveries)
+            takeover_findings = takeover_validator.check_subdomains(scan_targets)
             
             if takeover_findings:
                 # Note: log_finding not available in DynamicTUI("takeover_vulns", len(takeover_findings))
@@ -916,20 +1142,26 @@ Examples:
             
             tui.complete_phase(3, f"Found {len(takeover_findings)} takeovers" if takeover_findings else "No takeovers")
 
-        if new_discoveries:
+        if scan_targets:
             # ========== PHASE 4: Port Scanning ==========
             smart_watchdog.record_phase_change(4, "Port Scanning")
+            runtime_update(
+                status="running",
+                phase_num=4,
+                phase_name="Port Scanning",
+                current_tool="naabu",
+            )
             tui.set_phase(4)
-            ai_phase_guidance(4, "Port Scanning", {"hosts": len(new_discoveries)})
-            # Note: set_targets not available in DynamicTUI(len(new_discoveries))
+            ai_phase_guidance(4, "Port Scanning", {"hosts": len(scan_targets)})
+            # Note: set_targets not available in DynamicTUI(len(scan_targets))
             
-            tui.update_phase_details(4, f"[yellow]scanning {len(new_discoveries)} hosts[/yellow]")
+            tui.update_phase_details(4, f"[yellow]scanning {len(scan_targets)} hosts[/yellow]")
             if cdn_info and cdn_info.detected:
                 # Safe mode on CDN-protected targets: avoid aggressive full-port probing.
                 assumed_ports = cdn_detector.get_assumed_ports(cdn_info)
-                targets_with_ports = [f"{host}:{port}" for host in new_discoveries for port in assumed_ports]
+                targets_with_ports = [f"{host}:{port}" for host in scan_targets for port in assumed_ports]
             else:
-                targets_with_ports = scanner_ports.scan_ports(new_discoveries)
+                targets_with_ports = scanner_ports.scan_ports(scan_targets)
             
             # Note: log_finding not available in DynamicTUI("ports", len(targets_with_ports))
             tui.complete_phase(4, f"{len(targets_with_ports)} open ports")
@@ -937,6 +1169,12 @@ Examples:
             if targets_with_ports:
                 # ========== PHASE 5: Live Host Probing ==========
                 smart_watchdog.record_phase_change(5, "Live Host Probing")
+                runtime_update(
+                    status="running",
+                    phase_num=5,
+                    phase_name="Live Host Probing",
+                    current_tool="httpx",
+                )
                 tui.set_phase(5)
                 ai_phase_guidance(5, "Live Host Probing", {"targets_with_ports": len(targets_with_ports)})
                 # Note: set_targets not available in DynamicTUI(len(targets_with_ports))
@@ -952,6 +1190,19 @@ Examples:
                     if raw_urls:
                         # ========== PHASE 6: Web Crawling ==========
                         smart_watchdog.record_phase_change(6, "Web Crawling")
+                        runtime_update(
+                            status="running",
+                            phase_num=6,
+                            phase_name="Web Crawling",
+                            current_tool="katana",
+                            activity_message=f"Web crawling started across {len(raw_urls)} live hosts",
+                            activity_data={
+                                "phase": 6,
+                                "phase_name": "Web Crawling",
+                                "hosts_total": len(raw_urls),
+                                "module": "katana",
+                            },
+                        )
                         tui.set_phase(6)
                         ai_phase_guidance(6, "Web Crawling", {"live_hosts": len(raw_urls)})
                         # Note: set_targets not available in DynamicTUI(len(raw_urls))
@@ -967,6 +1218,19 @@ Examples:
                         
                         # Track web discovery
                         streaming_ui.track_tool("web-discovery", "Phase 6: Web Crawling", "running")
+                        runtime_update(
+                            status="running",
+                            phase_num=6,
+                            phase_name="Web Crawling",
+                            current_tool="web-discovery",
+                            activity_message="Running directory and endpoint discovery",
+                            activity_data={
+                                "phase": 6,
+                                "phase_name": "Web Crawling",
+                                "module": "web-discovery",
+                                "hosts_total": len(raw_urls),
+                            },
+                        )
                         tui.update_phase_details(6, "[yellow]running dir+param discovery[/yellow]")
                         try:
                             web_disc_urls = web_discovery_runner.discover_urls(raw_urls, target_domain, max_urls=4)
@@ -978,6 +1242,19 @@ Examples:
                         
                         # Track param discovery
                         streaming_ui.track_tool("param-discovery", "Phase 6: Web Crawling", "running")
+                        runtime_update(
+                            status="running",
+                            phase_num=6,
+                            phase_name="Web Crawling",
+                            current_tool="param-discovery",
+                            activity_message="Enumerating parameters on discovered URLs",
+                            activity_data={
+                                "phase": 6,
+                                "phase_name": "Web Crawling",
+                                "module": "param-discovery",
+                                "seed_urls": len(list(set(raw_urls + deep_urls))),
+                            },
+                        )
                         try:
                             param_seed_urls = list(set(raw_urls + deep_urls))
                             param_urls = param_discovery_runner.discover_urls(
@@ -992,12 +1269,32 @@ Examples:
                             streaming_ui.track_tool("param-discovery", "Phase 6: Web Crawling", "skipped", str(e))
                         
                         deep_urls = list(set(deep_urls + supplemental_urls))
+                        runtime_update(
+                            status="running",
+                            phase_num=6,
+                            phase_name="Web Crawling",
+                            current_tool="katana",
+                            activity_message=f"Web crawling discovered {len(deep_urls)} URLs across {len(raw_urls)} hosts",
+                            activity_data={
+                                "phase": 6,
+                                "phase_name": "Web Crawling",
+                                "module": "katana",
+                                "hosts_total": len(raw_urls),
+                                "urls_discovered": len(deep_urls),
+                            },
+                        )
                         
                         # Note: log_finding not available in DynamicTUI("urls", len(deep_urls))
                         tui.complete_phase(6, f"{len(deep_urls)} endpoints")
                         
                         # ========== PHASE 7: GraphQL/API Discovery ==========
                         smart_watchdog.record_phase_change(7, "GraphQL/API Discovery")
+                        runtime_update(
+                            status="running",
+                            phase_num=7,
+                            phase_name="GraphQL/API Discovery",
+                            current_tool="graphql-scanner",
+                        )
                         tui.set_phase(7)
                         ai_phase_guidance(7, "GraphQL/API Discovery", {"urls_sampled": min(len(raw_urls), 10)})
                         # Note: set_targets not available in DynamicTUI(len(raw_urls))
@@ -1005,7 +1302,22 @@ Examples:
                         graphql_findings = []
                         tui.update_phase_details(7, f"[yellow]crawling {len(raw_urls)} sites[/yellow]")
                         graphql_scanner = GraphQLAPIScanner()
-                        for url in raw_urls[:10]:  # Limit to first 10 hosts for performance
+                        graphql_targets = raw_urls[:10]
+                        for idx, url in enumerate(graphql_targets, start=1):  # Limit to first 10 hosts for performance
+                            runtime_update(
+                                status="running",
+                                phase_num=7,
+                                phase_name="GraphQL/API Discovery",
+                                current_tool="graphql-scanner",
+                                activity_message=f"GraphQL/API probing {url}",
+                                activity_data={
+                                    "phase": 7,
+                                    "phase_name": "GraphQL/API Discovery",
+                                    "active_url": url,
+                                    "current_index": idx,
+                                    "total_urls": len(graphql_targets),
+                                },
+                            )
                             try:
                                 findings = graphql_scanner.scan_target(url, cookies={'session': cookie} if cookie else None)
                                 graphql_findings.extend(findings)
@@ -1022,6 +1334,19 @@ Examples:
                         
                         # ========== PHASE 8: Historical Mining ==========
                         smart_watchdog.record_phase_change(8, "Historical Mining")
+                        runtime_update(
+                            status="running",
+                            phase_num=8,
+                            phase_name="Historical Mining",
+                            current_tool="gau",
+                            activity_message=f"Mining historical URLs for {target_domain}",
+                            activity_data={
+                                "phase": 8,
+                                "phase_name": "Historical Mining",
+                                "domain": target_domain,
+                                "module": "gau",
+                            },
+                        )
                         tui.set_phase(8)
                         ai_phase_guidance(8, "Historical Mining", {"domain": target_domain})
                         # Note: set_targets not available in DynamicTUI(1)
@@ -1082,6 +1407,12 @@ Examples:
 
                         # ========== PHASE 9: IDOR Testing ==========
                         smart_watchdog.record_phase_change(9, "IDOR Testing")
+                        runtime_update(
+                            status="running",
+                            phase_num=9,
+                            phase_name="IDOR Testing",
+                            current_tool="idor-tester",
+                        )
                         tui.set_phase(9)
                         ai_phase_guidance(9, "IDOR Testing", {"targets_for_idor": min(len(all_target_urls), 50)})
                         # Note: set_targets not available in DynamicTUI(len(all_target_urls))
@@ -1109,6 +1440,19 @@ Examples:
 
                         # ========== PHASE 10: Vulnerability Scanning ==========
                         smart_watchdog.record_phase_change(10, "Vulnerability Scanning")
+                        runtime_update(
+                            status="running",
+                            phase_num=10,
+                            phase_name="Vulnerability Scanning",
+                            current_tool="nuclei",
+                            activity_message=f"Nuclei launched on {len(all_target_urls)} targets",
+                            activity_data={
+                                "phase": 10,
+                                "phase_name": "Vulnerability Scanning",
+                                "total_targets": len(all_target_urls),
+                                "module": "nuclei",
+                            },
+                        )
                         tui.set_phase(10)
                         ai_phase_guidance(10, "Vulnerability Scanning", {"nuclei_targets": len(all_target_urls)})
                         # Note: set_targets not available in DynamicTUI(len(all_target_urls))
@@ -1125,7 +1469,57 @@ Examples:
                             total = stats.get("requests_total", 0)
                             vulns = stats.get("vulnerabilities", 0)
                             pct = int((sent / total) * 100) if total > 0 else 0
-                            tui.update_phase_details(10, f"[yellow]{pct}% · {sent}/{total} · {vulns} vulns[/yellow]")
+                            total_chunks = stats.get("total_chunks", 0)
+                            completed_chunks = stats.get("completed_chunks", 0)
+                            active_chunks = stats.get("active_chunks", 0)
+                            workers = stats.get("workers", 0)
+                            chunk_mode = stats.get("chunk_mode", "")
+                            if total_chunks:
+                                tui.update_phase_details(
+                                    10,
+                                    f"[yellow]{pct}% · {sent}/{total} · {vulns} vulns · chunks {completed_chunks}/{total_chunks} (active {active_chunks}, workers {workers})[/yellow]",
+                                )
+                            else:
+                                tui.update_phase_details(10, f"[yellow]{pct}% · {sent}/{total} · {vulns} vulns[/yellow]")
+                            target_urls = stats.get("target_urls", [])
+                            active_url = ""
+                            if isinstance(target_urls, list) and target_urls:
+                                active_url = target_urls[min(len(target_urls) - 1, sent % len(target_urls))]
+                            if total_chunks:
+                                activity_message = (
+                                    f"Nuclei {chunk_mode or 'chunked'} mode: {completed_chunks}/{total_chunks} chunks done "
+                                    f"(active {active_chunks}, workers {workers})"
+                                )
+                            else:
+                                activity_message = (
+                                    f"Nuclei scanning target set (sample URL: {active_url})"
+                                    if active_url
+                                    else "Nuclei vulnerability scan in progress"
+                                )
+                            runtime_update(
+                                status="running",
+                                phase_num=10,
+                                phase_name="Vulnerability Scanning",
+                                current_tool="nuclei",
+                                progress=min(99, 95 + max(0, min(4, pct // 25))),
+                                activity_message=activity_message,
+                                activity_data={
+                                    "phase": 10,
+                                    "phase_name": "Vulnerability Scanning",
+                                    "active_url_sample": active_url,
+                                    "requests_sent": sent,
+                                    "requests_total": total,
+                                    "findings_count": vulns,
+                                    "current_template": stats.get("current_template", ""),
+                                    "rps": stats.get("rps", 0),
+                                    "eta_seconds": stats.get("eta_seconds", 0),
+                                    "chunk_mode": chunk_mode,
+                                    "total_chunks": total_chunks,
+                                    "completed_chunks": completed_chunks,
+                                    "active_chunks": active_chunks,
+                                    "workers": workers,
+                                },
+                            )
                             
                             # Report activity to smart watchdog for AI-based stuck detection
                             if smart_watchdog:
@@ -1221,7 +1615,7 @@ Examples:
                                 'domain': target_domain,
                                 'technologies': [],
                                 'open_ports': open_ports,
-                                'subdomains_count': len(new_discoveries) if 'new_discoveries' in locals() else 0,
+                                'subdomains_count': len(scan_targets) if 'scan_targets' in locals() else 0,
                                 'vulnerabilities_count': len(vulnerabilities),
                                 'critical_vulns': len([v for v in vulnerabilities if 'critical' in str(v).lower()]),
                                 'high_vulns': len([v for v in vulnerabilities if 'high' in str(v).lower()])
@@ -1290,6 +1684,16 @@ Examples:
                                 else:
                                     print("\n🚨 [FATAL EXCEPTION] CRITICAL VULNERABILITY DETECTED! 🚨")
                                     print("🛑 Trishul is executing a CI/CD Pipeline Block. Deployment HALTED.")
+                                runtime_update(
+                                    status="failed",
+                                    progress=100,
+                                    phase_num=10,
+                                    phase_name="Vulnerability Scanning",
+                                    current_tool="nuclei",
+                                    error="Critical vulnerability detected",
+                                    results={"vulnerabilities": len(vulnerabilities)},
+                                    summary=True,
+                                )
                                 sys.exit(1)
                             else:
                                 report_path = reporter.generate_report(target_domain, vulnerabilities)
@@ -1318,14 +1722,17 @@ Examples:
                 logging.info("Target locked down. No open ports found.")
         else:
             tui.stop()
-            logging.info("No new subdomains found. Universe is in balance.")
+            if reattack_mode == "incremental":
+                logging.info("No new subdomains found for incremental mode. Universe is in balance.")
+            else:
+                logging.info("No in-scope subdomains found. Universe is in balance.")
         
         # Log scan completion
         scan_duration = time.time() - attack_start_time
         
         # Stop watchdog
-        if 'watchdog' in locals():
-            watchdog.stop()
+        if 'smart_watchdog' in locals():
+            smart_watchdog.stop()
 
         # Update campaign with final scan statistics
         if campaign_id:
@@ -1385,6 +1792,23 @@ Examples:
                 vulns=all_vulnerabilities,
                 pdf_path=pdf_report_path
             )
+
+        runtime_update(
+            status="completed",
+            progress=100,
+            phase_num=10 if 'vulnerabilities' in locals() else runtime_state.get("current_phase", 0),
+            phase_name="Completed",
+            current_tool="reporting",
+            error="",
+            results={
+                "subdomains_found": len(scan_targets) if 'scan_targets' in locals() else 0,
+                "new_subdomains": len(new_discoveries) if 'new_discoveries' in locals() else 0,
+                "live_hosts": len(raw_urls) if 'raw_urls' in locals() else 0,
+                "open_ports": len(targets_with_ports) if 'targets_with_ports' in locals() else 0,
+                "vulnerabilities": len(vulnerabilities) if 'vulnerabilities' in locals() else 0,
+            },
+            summary=True,
+        )
         
         if audit_logger:
             # Count total findings (simplified - actual implementation would aggregate)
@@ -1398,10 +1822,27 @@ Examples:
     except KeyboardInterrupt:
         # Handle Ctrl+C gracefully
         elapsed_time = time.time() - attack_start_time if 'attack_start_time' in locals() else 0
-        current_phase = watchdog.current_phase if 'watchdog' in locals() else 0
+        current_phase = smart_watchdog.current_phase if 'smart_watchdog' in locals() else 0
+        partial_report_path = None
+        partial_findings_count = 0
+        partial_vulnerabilities = []
+
+        if partial_report_on_interrupt and 'reporter' in locals() and 'target_domain' in locals():
+            try:
+                partial_vulnerabilities = collect_partial_vulnerability_lines(locals())
+                partial_findings_count = len(partial_vulnerabilities)
+                if partial_vulnerabilities:
+                    partial_report_path = reporter.generate_report(target_domain, partial_vulnerabilities)
+                    logger.info(
+                        "Generated partial report on interruption with %s findings: %s",
+                        partial_findings_count,
+                        partial_report_path,
+                    )
+            except Exception as partial_report_exc:
+                logger.warning("Partial report generation on interruption failed: %s", partial_report_exc)
         
-        if 'watchdog' in locals():
-            watchdog.stop()
+        if 'smart_watchdog' in locals():
+            smart_watchdog.stop()
         
         if 'tui' in locals():
             tui.stop()
@@ -1411,7 +1852,9 @@ Examples:
             gmail_notifier.send_attack_interrupted(
                 domain=target_domain if 'target_domain' in locals() else "unknown",
                 elapsed_time=elapsed_time,
-                current_phase=current_phase
+                current_phase=current_phase,
+                partial_findings_count=partial_findings_count,
+                pdf_path=partial_report_path,
             )
 
         if 'campaign_id' in locals() and campaign_id:
@@ -1442,12 +1885,46 @@ Examples:
                 'phase': current_phase
             })
             audit_logger.close()
+        runtime_update(
+            status="cancelled",
+            phase_num=current_phase,
+            phase_name="Interrupted",
+            current_tool=runtime_state.get("current_tool", ""),
+            error="Interrupted by user",
+            results={
+                "subdomains_found": len(scan_targets) if 'scan_targets' in locals() else 0,
+                "new_subdomains": len(new_discoveries) if 'new_discoveries' in locals() else 0,
+                "live_hosts": len(raw_urls) if 'raw_urls' in locals() else 0,
+                "open_ports": len(targets_with_ports) if 'targets_with_ports' in locals() else 0,
+                "vulnerabilities": partial_findings_count,
+            },
+            summary=True,
+        )
         
         sys.exit(1)
         
     except Exception as e:
-        if 'watchdog' in locals():
-            watchdog.stop()
+        elapsed_time = time.time() - attack_start_time if 'attack_start_time' in locals() else 0
+        current_phase = smart_watchdog.current_phase if 'smart_watchdog' in locals() else runtime_state.get("current_phase", 0)
+        partial_report_path = None
+        partial_findings_count = 0
+        partial_vulnerabilities = []
+        if partial_report_on_interrupt and 'reporter' in locals() and 'target_domain' in locals():
+            try:
+                partial_vulnerabilities = collect_partial_vulnerability_lines(locals())
+                partial_findings_count = len(partial_vulnerabilities)
+                if partial_vulnerabilities:
+                    partial_report_path = reporter.generate_report(target_domain, partial_vulnerabilities)
+                    logger.info(
+                        "Generated partial report on failure with %s findings: %s",
+                        partial_findings_count,
+                        partial_report_path,
+                    )
+            except Exception as partial_report_exc:
+                logger.warning("Partial report generation on failure failed: %s", partial_report_exc)
+
+        if 'smart_watchdog' in locals():
+            smart_watchdog.stop()
             
         if 'tui' in locals():
             tui.stop()
@@ -1467,11 +1944,37 @@ Examples:
                 logger.warning(f"Campaign failure update failed (non-critical): {campaign_error}")
             
         logging.error(f"Main Pipeline Failure: {e}")
+
+        if 'gmail_notifier' in locals() and gmail_notifier.enabled:
+            logger.info("📧 Sending attack failure notification...")
+            gmail_notifier.send_attack_failed(
+                domain=target_domain if 'target_domain' in locals() else "unknown",
+                elapsed_time=elapsed_time,
+                current_phase=current_phase,
+                error_message=str(e),
+                partial_findings_count=partial_findings_count,
+                pdf_path=partial_report_path,
+            )
         
         # Log error
         if audit_logger:
             audit_logger.log_error("pipeline_failure", str(e), {'target': target_domain})
             audit_logger.close()
+        runtime_update(
+            status="failed",
+            phase_num=runtime_state.get("current_phase", 0),
+            phase_name=runtime_state.get("current_phase_name", "Failed"),
+            current_tool=runtime_state.get("current_tool", ""),
+            error=str(e),
+            results={
+                "subdomains_found": len(scan_targets) if 'scan_targets' in locals() else 0,
+                "new_subdomains": len(new_discoveries) if 'new_discoveries' in locals() else 0,
+                "live_hosts": len(raw_urls) if 'raw_urls' in locals() else 0,
+                "open_ports": len(targets_with_ports) if 'targets_with_ports' in locals() else 0,
+                "vulnerabilities": partial_findings_count,
+            },
+            summary=True,
+        )
 
 if __name__ == "__main__":
     main()

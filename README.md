@@ -108,6 +108,7 @@ Trishul automates the entire bug bounty workflow from reconnaissance to reportin
 ### 🚀 **NEW in v2.0!**
 | Feature | Description |
 |---------|-------------|
+| **Chunked Phase 10 (Nuclei)** | Supports single, sequential, parallel, and adaptive chunk modes for faster large-target scans with live chunk telemetry. |
 | **Adaptive Rate Limiting** | Intelligent rate control: starts safe (10 req/s), speeds up to 150 req/s when server healthy, backs off on stress. 2-10x faster than static safe mode! |
 | **AI Stuck Detection** | Activity-based monitoring (not time-based). Only alerts on sustained zero requests (60s), eliminating false positives during slow scans. |
 | **Extended Tools (13 added)** | Amass, DNSRecon, Gobuster, Dirsearch, Feroxbuster, ParamSpider, Arjun, Waybackurls, WhatWeb, Nikto, WPScan, SQLMap, Dalfox |
@@ -137,9 +138,11 @@ Trishul automates the entire bug bounty workflow from reconnaissance to reportin
 | Feature | Description |
 |---------|-------------|
 | **Single Bug Bounty Mode** | Autonomous bug bounty hunting workflow |
-| **State Diffing** | SQLite-based tracking - only scans NEW subdomains |
+| **Re-attack Policies** | Choose `full_rescan` (default) to re-scan full in-scope targets, or `incremental` for new discoveries only. |
+| **State Diffing** | SQLite tracking preserves novelty metrics while decoupling scan execution target selection. |
 | **Scope Enforcement** | Built-in denylist blocks third-party SaaS (AWS, Heroku, etc.) |
-| **Real-time Alerts** | Gmail notifications on target found, start, completion, interruption, and stuck phases |
+| **Real-time Alerts** | Gmail notifications on target found, start, completion, interruption, stuck phases, and runtime failures |
+| **Partial Report Fallback** | Interrupted/failed scans generate and attach partial reports from findings collected so far |
 | **Bounty Estimation** | Auto-estimates potential payout based on severity |
 | **CI/CD Integration** | Exit code 1 on critical vulns to halt deployments |
 
@@ -208,12 +211,24 @@ Open:
 Auth-first flow:
 1. Visit `/auth` and login/register.
 2. Start scan from `/operations`.
+   - **Auto** mode: discover HackerOne/Bugcrowd target, then confirm Yes/No before launching.
+   - **Manual Override** mode: enter target and start directly.
+   - Select **Re-attack Strategy**:
+     - `Full re-attack (recommended)` → scans full discovered in-scope surface
+     - `Incremental` → scans newly discovered assets only
+   - Use **Pause / Resume / Stop** buttons in Workflow Wizard to control active scan.
+   - If scan pauses due to laptop sleep and process still exists, use **Resume**.
+   - On cancel/failure, Trishul preserves discovered findings and generates a partial report attachment.
 3. View report + stats on `/reports`.
 4. Use header search to find previously attacked websites (per-user DB tracking).
 
 New API surfaces for richer UI:
 - `GET /api/v1/operations/overview`
 - `GET /api/v1/reports/analytics`
+- `GET /api/v1/programs/discover`
+- `POST /api/v1/scans/{scan_id}/pause`
+- `POST /api/v1/scans/{scan_id}/resume`
+- `POST /api/v1/scans/{scan_id}/stop`
 - `GET /api/v1/search/attacked-sites`
 - `GET /api/v1/search/recent`
 
@@ -291,9 +306,26 @@ POST /api/v1/ai/batch-analyze
 # Scanning
 POST /api/v1/scans/start
 GET  /api/v1/scans/{scan_id}
+POST /api/v1/scans/{scan_id}/pause
+POST /api/v1/scans/{scan_id}/resume
+POST /api/v1/scans/{scan_id}/stop
+GET  /api/v1/programs/discover
 
 # Reports
 GET  /api/v1/reports/generate
+```
+
+**Start scan body (re-attack + partial-report options):**
+```json
+{
+  "target": "example.com",
+  "scan_type": "full",
+  "scan_mode": "manual_override",
+  "options": {
+    "reattack_mode": "full_rescan",
+    "partial_report_on_interrupt": true
+  }
+}
 ```
 
 #### 3. Traditional CLI Mode

@@ -453,7 +453,14 @@ class GmailNotifier:
         """
         return self.send_attack_completed(domain, elapsed_time, [], None)
     
-    def send_attack_interrupted(self, domain: str, elapsed_time: float, current_phase: int) -> bool:
+    def send_attack_interrupted(
+        self,
+        domain: str,
+        elapsed_time: float,
+        current_phase: int,
+        partial_findings_count: int = 0,
+        pdf_path: Optional[str] = None,
+    ) -> bool:
         """
         Send notification when attack is interrupted (Ctrl+C).
         
@@ -494,10 +501,15 @@ class GmailNotifier:
                         <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6;"><strong>Reason:</strong></td>
                         <td style="padding: 10px; border: 1px solid #dee2e6;">User interruption (Ctrl+C / KeyboardInterrupt)</td>
                     </tr>
+                    <tr>
+                        <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6;"><strong>Partial Findings:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{partial_findings_count}</td>
+                    </tr>
                 </table>
                 
                 <div style="margin-top: 30px; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 3px;">
                     <p style="margin: 0;"><strong>ℹ️ Note:</strong> Partial results may have been saved. Check the reports directory for any generated outputs.</p>
+                    {f"<p style='margin: 10px 0 0 0;'><strong>📎 Partial report attached:</strong> see attachment for preserved findings.</p>" if pdf_path else ""}
                 </div>
             </div>
             
@@ -510,7 +522,69 @@ class GmailNotifier:
         </html>
         """
         
-        return self._send_email(subject, html_body)
+        return self._send_email(subject, html_body, pdf_path)
+
+    def send_attack_failed(
+        self,
+        domain: str,
+        elapsed_time: float,
+        current_phase: int,
+        error_message: str,
+        partial_findings_count: int = 0,
+        pdf_path: Optional[str] = None,
+    ) -> bool:
+        """Send notification when attack fails due to runtime error."""
+        time_str = self._format_time(elapsed_time)
+        subject = f"❌ Trishul: Attack Failed - {domain}"
+
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="background-color: #dc3545; color: white; padding: 20px; border-radius: 5px;">
+                <h1 style="margin: 0;">❌ Attack Failed</h1>
+            </div>
+
+            <div style="padding: 20px;">
+                <h2 style="color: #dc3545;">Failure Details</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; width: 150px;"><strong>Target:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><code>{domain}</code></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6;"><strong>Runtime:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{time_str}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6;"><strong>Phase:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">Phase {current_phase}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6;"><strong>Error:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{error_message}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6;"><strong>Partial Findings:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{partial_findings_count}</td>
+                    </tr>
+                </table>
+
+                <div style="margin-top: 30px; padding: 15px; background-color: #f8d7da; border-left: 4px solid #dc3545; border-radius: 3px;">
+                    <p style="margin: 0;"><strong>ℹ️ Note:</strong> The pipeline stopped due to a runtime error.</p>
+                    {f"<p style='margin: 10px 0 0 0;'><strong>📎 Partial report attached:</strong> findings collected before failure are included.</p>" if pdf_path else ""}
+                </div>
+            </div>
+
+            <div style="padding: 20px; background-color: #f8f9fa; border-top: 2px solid #dee2e6; margin-top: 20px;">
+                <p style="margin: 0; color: #6c757d; font-size: 12px;">
+                    Sent by Trishul Security Scanner • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+
+        return self._send_email(subject, html_body, pdf_path)
     
     def send_stuck_alert(self, domain: str, phase_num: int, phase_name: str, stuck_duration: float) -> bool:
         """

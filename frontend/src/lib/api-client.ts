@@ -3,10 +3,13 @@ import {
   type AuthRequest,
   type AuthResponse,
   type OperationsOverviewResponse,
+  type PauseResumeScanResponse,
+  type ProgramDiscoveryResponse,
   type ReportsAnalyticsResponse,
   type ReportsResponse,
   type ScanStatusResponse,
   type SearchResponse,
+  type StopScanResponse,
   type StartScanRequest,
   type StartScanResponse,
   type StatsResponse,
@@ -66,6 +69,22 @@ export async function startScan(payload: StartScanRequest): Promise<StartScanRes
 
 export async function getScanStatus(scanId: string): Promise<ScanStatusResponse> {
   return request<ScanStatusResponse>(API_ENDPOINTS.scanStatus(scanId), { method: "GET" }, true);
+}
+
+export async function stopScan(scanId: string): Promise<StopScanResponse> {
+  return request<StopScanResponse>(API_ENDPOINTS.stopScan(scanId), { method: "POST" }, true);
+}
+
+export async function pauseScan(scanId: string): Promise<PauseResumeScanResponse> {
+  return request<PauseResumeScanResponse>(API_ENDPOINTS.pauseScan(scanId), { method: "POST" }, true);
+}
+
+export async function resumeScan(scanId: string): Promise<PauseResumeScanResponse> {
+  return request<PauseResumeScanResponse>(API_ENDPOINTS.resumeScan(scanId), { method: "POST" }, true);
+}
+
+export async function discoverProgram(): Promise<ProgramDiscoveryResponse> {
+  return request<ProgramDiscoveryResponse>(API_ENDPOINTS.discoverProgram, { method: "GET" }, true);
 }
 
 export async function getStats(): Promise<StatsResponse> {

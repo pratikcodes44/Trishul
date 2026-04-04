@@ -81,6 +81,44 @@ export function LandingPage() {
             );
           })}
         </ScrollRevealSection>
+
+        <ScrollRevealSection className="mt-6">
+          <ScrollRevealItem>
+            <div className="flex items-center justify-center">
+              <div className="h-px w-16 bg-[#d2d2d7]" />
+              <div className="mx-3 rounded-full border border-[#d2d2d7] bg-white px-3 py-1 text-xs font-medium text-[#6e6e73]">
+                AI Oversight
+              </div>
+              <div className="h-px w-16 bg-[#d2d2d7]" />
+            </div>
+          </ScrollRevealItem>
+        </ScrollRevealSection>
+
+        <ScrollRevealSection className="mt-4">
+          <ScrollRevealItem>
+            <article className="surface-card border border-[#d2d2d7] bg-[#fafafa] p-6">
+              <h4 className="text-lg font-semibold text-[#1d1d1f]">Execution Intelligence Layer</h4>
+              <p className="mt-2 text-sm text-[#6e6e73]">
+                Each capability runs under one coordinated intelligence layer that prioritizes phases, adapts scan behavior,
+                validates execution signals, and helps keep operations stable while scans are running.
+              </p>
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-[#d2d2d7] bg-white p-3">
+                  <p className="text-xs text-[#6e6e73]">Decisioning</p>
+                  <p className="mt-1 text-sm font-medium text-[#1d1d1f]">Selects safest effective execution path per phase.</p>
+                </div>
+                <div className="rounded-xl border border-[#d2d2d7] bg-white p-3">
+                  <p className="text-xs text-[#6e6e73]">Adaptive control</p>
+                  <p className="mt-1 text-sm font-medium text-[#1d1d1f]">Tunes runtime behavior based on live scan telemetry.</p>
+                </div>
+                <div className="rounded-xl border border-[#d2d2d7] bg-white p-3">
+                  <p className="text-xs text-[#6e6e73]">Operational continuity</p>
+                  <p className="mt-1 text-sm font-medium text-[#1d1d1f]">Supports pause/resume controls with continuous monitoring.</p>
+                </div>
+              </div>
+            </article>
+          </ScrollRevealItem>
+        </ScrollRevealSection>
       </section>
     </main>
   );
