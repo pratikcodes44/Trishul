@@ -5,6 +5,7 @@ import requests
 import os
 import time
 import re
+import select
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from adaptive_rate_limiter import create_adaptive_limiter
@@ -16,7 +17,10 @@ class NucleiRunner:
         # Pointing directly to the AI port discovered via your ss/lsof commands
         self.ai_url = os.getenv("OLLAMA_API_URL", "http://127.0.0.1:11434/api/generate")
         self.model_name = os.getenv("OLLAMA_MODEL", "mistral:latest")
-        self.error_threshold = 5
+        try:
+            self.error_threshold = int(os.getenv("TRISHUL_NUCLEI_ERROR_THRESHOLD", "8"))
+        except ValueError:
+            self.error_threshold = 8
         
         # Progress tracking
         self.templates_loaded = 0
@@ -29,6 +33,7 @@ class NucleiRunner:
         self.current_template = ""
         self.is_scanning = False
         self.adaptive_limiter = None
+        self.error_count = 0
 
     def ask_ai_for_evasion(self):
         """Reaches out to the local LLM to generate WAF bypass rate-limiting flags."""
@@ -60,9 +65,8 @@ class NucleiRunner:
         
         try:
             logging.info("🧠 Waking up AI Agent for Authorized Evasion Tactics...")
-            logger.info("[NUCLEI DIAGNOSTIC] Sending AI request with 30s timeout...")
-            # Reduced timeout from 300s to 30s
-            response = requests.post(self.ai_url, json=payload, timeout=30)
+            logger.info("[NUCLEI DIAGNOSTIC] Sending AI request with 8s timeout...")
+            response = requests.post(self.ai_url, json=payload, timeout=8)
             
             if response.status_code == 200:
                 ai_response = response.json().get("response", "").strip()
@@ -80,7 +84,7 @@ class NucleiRunner:
                 return "-rl 5 -c 2"
                 
         except requests.exceptions.Timeout:
-            logger.warning("[NUCLEI DIAGNOSTIC] AI request timed out after 30s. Using fallback.")
+            logger.warning("[NUCLEI DIAGNOSTIC] AI request timed out after 8s. Using fallback.")
             logging.info("🛡️ Using hardcoded fallback polite tactics...")
             return "-rl 5 -c 2"
         except Exception as e:
@@ -265,6 +269,25 @@ class NucleiRunner:
                 file_suffix="single",
             )
 
+        use_adaptive = os.getenv("TRISHUL_ADAPTIVE_RATE", "true").lower() == "true"
+        scan_profile = os.getenv("TRISHUL_SCAN_PROFILE", "default").strip().lower()
+        adaptive_reapply_enabled = os.getenv("TRISHUL_ADAPTIVE_REAPPLY", "true").lower() == "true"
+        try:
+            adaptive_wave_targets = int(os.getenv("TRISHUL_NUCLEI_ADAPTIVE_WAVE_TARGETS", "25"))
+        except ValueError:
+            adaptive_wave_targets = 25
+        adaptive_wave_targets = max(5, adaptive_wave_targets)
+
+        shared_adaptive_limiter = None
+        if use_adaptive:
+            if scan_profile in {"cdn-safe", "gentle", "safe"}:
+                shared_adaptive_limiter = create_adaptive_limiter("safe")
+            elif scan_profile == "aggressive":
+                shared_adaptive_limiter = create_adaptive_limiter("aggressive")
+            else:
+                shared_adaptive_limiter = create_adaptive_limiter("balanced")
+            self.adaptive_limiter = shared_adaptive_limiter
+
         workers = self._select_chunk_workers(chunk_mode, len(chunks), len(target_urls))
         logger.info(
             "[NUCLEI CHUNK] Starting chunked scan mode=%s chunks=%s workers=%s targets=%s",
@@ -282,6 +305,7 @@ class NucleiRunner:
         self.requests_total = 0
         self.vulnerabilities_found = 0
         self.current_template = ""
+        self.error_count = 0
 
         aggregate_lock = threading.Lock()
         chunk_stats = {
@@ -346,41 +370,83 @@ class NucleiRunner:
         def run_single_chunk(index, urls):
             runner = NucleiRunner()
             runner.error_threshold = self.error_threshold
+            chunk_findings = []
+            cumulative_sent = 0
+            cumulative_total = 0
+            cumulative_vulns = 0
+            cumulative_errors = 0
+
+            if adaptive_reapply_enabled and chunk_mode == "adaptive" and len(urls) > adaptive_wave_targets:
+                waves = [urls[i : i + adaptive_wave_targets] for i in range(0, len(urls), adaptive_wave_targets)]
+            else:
+                waves = [urls]
+
             with aggregate_lock:
                 chunk_stats[index]["status"] = "running"
                 chunk_stats[index]["last_update"] = time.time()
             emit_progress()
 
-            def chunk_progress(stats):
+            def chunk_progress(stats, sent_offset=0, total_offset=0, vuln_offset=0):
                 with aggregate_lock:
                     chunk_stats[index]["status"] = "running"
-                    chunk_stats[index]["requests_sent"] = int(stats.get("requests_sent", 0))
-                    chunk_stats[index]["requests_total"] = int(stats.get("requests_total", 0))
-                    chunk_stats[index]["vulnerabilities"] = int(stats.get("vulnerabilities", 0))
+                    chunk_stats[index]["requests_sent"] = sent_offset + int(stats.get("requests_sent", 0))
+                    chunk_stats[index]["requests_total"] = total_offset + int(stats.get("requests_total", 0))
+                    chunk_stats[index]["vulnerabilities"] = vuln_offset + int(stats.get("vulnerabilities", 0))
                     chunk_stats[index]["current_template"] = str(stats.get("current_template", ""))
                     chunk_stats[index]["last_update"] = time.time()
                 emit_progress()
 
-            results = runner.run_scan(
-                urls,
-                cookie=cookie,
-                progress_callback=chunk_progress,
-                disable_chunking=True,
-                file_suffix=f"chunk_{index}",
-            )
+            for wave_index, wave_urls in enumerate(waves):
+                if shared_adaptive_limiter is not None:
+                    rate_limit, concurrency = shared_adaptive_limiter.get_nuclei_flags()
+                else:
+                    rate_limit, concurrency = None, None
+
+                logger.info(
+                    "[NUCLEI CHUNK] Chunk %s wave %s/%s targets=%s rl=%s c=%s",
+                    index,
+                    wave_index + 1,
+                    len(waves),
+                    len(wave_urls),
+                    rate_limit if rate_limit is not None else "default",
+                    concurrency if concurrency is not None else "default",
+                )
+
+                wave_results = runner.run_scan(
+                    wave_urls,
+                    cookie=cookie,
+                    progress_callback=lambda stats, s=cumulative_sent, t=cumulative_total, v=cumulative_vulns: chunk_progress(
+                        stats, sent_offset=s, total_offset=t, vuln_offset=v
+                    ),
+                    disable_chunking=True,
+                    file_suffix=f"chunk_{index}_wave_{wave_index}",
+                    rate_limit_override=rate_limit,
+                    concurrency_override=concurrency,
+                    external_adaptive_limiter=shared_adaptive_limiter,
+                )
+                chunk_findings.extend(wave_results)
+                cumulative_sent += int(runner.requests_sent)
+                cumulative_total += int(runner.requests_total)
+                cumulative_vulns += len(wave_results)
+                cumulative_errors += int(getattr(runner, "error_count", 0))
+
+                if shared_adaptive_limiter is not None:
+                    shared_adaptive_limiter.maybe_adapt_now()
+
             with aggregate_lock:
                 chunk_stats[index]["status"] = "completed"
                 chunk_stats[index]["requests_sent"] = max(
                     chunk_stats[index]["requests_sent"],
-                    int(runner.requests_sent),
+                    cumulative_sent,
                 )
                 chunk_stats[index]["requests_total"] = max(
                     chunk_stats[index]["requests_total"],
-                    int(runner.requests_total),
+                    cumulative_total,
                 )
-                chunk_stats[index]["vulnerabilities"] = len(results)
+                chunk_stats[index]["vulnerabilities"] = cumulative_vulns
                 chunk_stats[index]["last_update"] = time.time()
-                findings_by_chunk[index] = results
+                findings_by_chunk[index] = chunk_findings
+                self.error_count += cumulative_errors
             emit_progress()
 
         try:
@@ -416,7 +482,17 @@ class NucleiRunner:
         self.vulnerabilities_found = len(all_findings)
         return all_findings
 
-    def run_scan(self, target_urls, cookie=None, progress_callback=None, disable_chunking=False, file_suffix=""):
+    def run_scan(
+        self,
+        target_urls,
+        cookie=None,
+        progress_callback=None,
+        disable_chunking=False,
+        file_suffix="",
+        rate_limit_override=None,
+        concurrency_override=None,
+        external_adaptive_limiter=None,
+    ):
         """
         Run Nuclei scan with real-time progress tracking.
         
@@ -432,7 +508,21 @@ class NucleiRunner:
             chunk_count = int(os.getenv("TRISHUL_NUCLEI_CHUNK_COUNT", "4"))
         except ValueError:
             chunk_count = 4
-        chunk_count = max(2, min(chunk_count, 8))
+        adaptive_reapply_enabled = os.getenv("TRISHUL_ADAPTIVE_REAPPLY", "true").lower() == "true"
+        if adaptive_reapply_enabled and chunk_mode == "adaptive":
+            try:
+                targets_per_chunk = int(os.getenv("TRISHUL_NUCLEI_ADAPTIVE_TARGETS_PER_CHUNK", "40"))
+            except ValueError:
+                targets_per_chunk = 40
+            targets_per_chunk = max(10, targets_per_chunk)
+            try:
+                max_adaptive_chunks = int(os.getenv("TRISHUL_NUCLEI_ADAPTIVE_MAX_CHUNKS", "24"))
+            except ValueError:
+                max_adaptive_chunks = 24
+            max_adaptive_chunks = max(4, max_adaptive_chunks)
+            recommended_chunk_count = max(2, (len(target_urls) + targets_per_chunk - 1) // targets_per_chunk)
+            chunk_count = max(chunk_count, min(max_adaptive_chunks, recommended_chunk_count))
+        chunk_count = max(2, min(chunk_count, 64))
 
         if not disable_chunking and chunk_mode != "single" and len(target_urls) >= chunk_count * 2:
             return self._run_chunked_scan(
@@ -451,6 +541,7 @@ class NucleiRunner:
         self.requests_total = 0
         self.vulnerabilities_found = 0
         self.current_template = ""
+        self.error_count = 0
 
         safe_suffix = ""
         if file_suffix:
@@ -472,20 +563,24 @@ class NucleiRunner:
         
         # Initialize adaptive rate limiter based on profile
         use_adaptive = os.getenv("TRISHUL_ADAPTIVE_RATE", "true").lower() == "true"
+        if external_adaptive_limiter is not None:
+            self.adaptive_limiter = external_adaptive_limiter
         
         if use_adaptive:
-            # NEW: Adaptive rate limiting (safe + fast)
-            logger.info("🎯 Enabling adaptive rate limiting (safe + fast mode)")
-            
-            if scan_profile in {"cdn-safe", "gentle", "safe"}:
-                self.adaptive_limiter = create_adaptive_limiter("safe")
-            elif scan_profile == "aggressive":
-                self.adaptive_limiter = create_adaptive_limiter("aggressive")
+            if self.adaptive_limiter is None:
+                logger.info("🎯 Enabling adaptive rate limiting (safe + fast mode)")
+                if scan_profile in {"cdn-safe", "gentle", "safe"}:
+                    self.adaptive_limiter = create_adaptive_limiter("safe")
+                elif scan_profile == "aggressive":
+                    self.adaptive_limiter = create_adaptive_limiter("aggressive")
+                else:
+                    self.adaptive_limiter = create_adaptive_limiter("balanced")
+
+            if rate_limit_override is not None and concurrency_override is not None:
+                rate_limit = str(int(rate_limit_override))
+                concurrency = str(int(concurrency_override))
             else:
-                self.adaptive_limiter = create_adaptive_limiter("balanced")
-            
-            # Get initial rate from adaptive limiter
-            rate_limit, concurrency = self.adaptive_limiter.get_nuclei_flags()
+                rate_limit, concurrency = self.adaptive_limiter.get_nuclei_flags()
             base_cmd.extend(["-rl", rate_limit, "-c", concurrency, "-timeout", "10", "-retries", "1"])
             logger.info(
                 f"[ADAPTIVE] Starting with {rate_limit} req/s, {concurrency} concurrency "
@@ -496,6 +591,15 @@ class NucleiRunner:
             if scan_profile in {"cdn-safe", "gentle", "safe"}:
                 base_cmd.extend(["-rl", "10", "-c", "8", "-timeout", "10", "-retries", "1"])
                 logger.info("[NUCLEI DIAGNOSTIC] Using static CDN-safe profile (-rl 10 -c 8)")
+
+        if use_adaptive:
+            try:
+                adaptive_threshold = int(os.getenv("TRISHUL_NUCLEI_ADAPTIVE_ERROR_THRESHOLD", "18"))
+            except ValueError:
+                adaptive_threshold = 18
+            block_error_threshold = max(self.error_threshold, adaptive_threshold)
+        else:
+            block_error_threshold = self.error_threshold
             
         if cookie:
             # SECURITY: Strip newlines/carriage returns to prevent header injection
@@ -524,6 +628,9 @@ class NucleiRunner:
         
         error_count = 0
         waf_triggered = False
+        last_adaptive_request_count = 0
+        last_adaptive_sample_time = time.time()
+        last_progress_time = time.time()
         
         # Monitor progress in separate thread (with adaptive rate updates)
         def monitor_progress():
@@ -551,6 +658,7 @@ class NucleiRunner:
                 
                 # Update adaptive rate limiter status
                 if self.adaptive_limiter and time.time() - last_rate_update > 10:
+                    self.adaptive_limiter.maybe_adapt_now()
                     status = self.adaptive_limiter.get_status()
                     logger.info(
                         f"[ADAPTIVE] Rate: {status['current_rate']} req/s, "
@@ -572,22 +680,57 @@ class NucleiRunner:
         logger.info("[NUCLEI DIAGNOSTIC] Starting to read Nuclei stderr output...")
         for line in process.stderr:
             # Parse progress information
+            prev_sent = int(self.requests_sent)
             self._parse_progress(line)
+            sent_now = int(self.requests_sent)
+            if sent_now > prev_sent:
+                last_progress_time = time.time()
+
+            if self.adaptive_limiter:
+                now = time.time()
+                delta_requests = max(0, sent_now - last_adaptive_request_count)
+                delta_time = max(0.001, now - last_adaptive_sample_time)
+                if delta_requests > 0 and (delta_requests >= 20 or delta_time >= 5):
+                    synthetic_response_time = max(0.001, delta_time / delta_requests)
+                    sample_count = max(1, min(30, delta_requests))
+                    for _ in range(sample_count):
+                        self.adaptive_limiter.record_request(synthetic_response_time, 200)
+                    self.adaptive_limiter.maybe_adapt_now()
+                    last_adaptive_request_count = sent_now
+                    last_adaptive_sample_time = now
             
             # Count vulnerabilities found
             if "[FOUND]" in line or "found" in line.lower() or "vulnerability" in line.lower():
                 self.vulnerabilities_found += 1
-            
-            if "error" in line.lower() or "429" in line:
+
+            lower_line = line.lower()
+            block_status = None
+            if re.search(r"\b429\b", lower_line) or "too many requests" in lower_line or "rate limit" in lower_line:
+                block_status = 429
+            elif re.search(r"\b(?:503|502|504)\b", lower_line):
+                block_status = 503
+
+            if block_status is not None:
                 error_count += 1
+                if self.adaptive_limiter:
+                    if block_status == 429:
+                        self.adaptive_limiter.record_request(0.2, 429, retry_after=10)
+                    else:
+                        self.adaptive_limiter.record_request(0.5, 503)
+                    self.adaptive_limiter.maybe_adapt_now()
+            else:
+                error_count = max(0, error_count - 1)
             
             # Log some lines for debugging (first 5)
             if self.requests_sent < 5:
                 logging.debug(f"Nuclei: {line.strip()}")
             
-            # The exact moment we hit the threshold, kill the fast scan
-            if error_count >= self.error_threshold:
-                logging.warning(f"🛑 WAF BLOCK DETECTED ({error_count} errors)! Halting attack...")
+            # Halt only after sustained block signals and no recent progress.
+            if error_count >= block_error_threshold and (time.time() - last_progress_time) >= 8:
+                logging.warning(
+                    f"🛑 WAF BLOCK DETECTED ({error_count} sustained block errors, no progress for "
+                    f"{int(time.time() - last_progress_time)}s). Halting attack..."
+                )
                 process.terminate() 
                 waf_triggered = True
                 break
@@ -619,6 +762,7 @@ class NucleiRunner:
             except Exception as e:
                 logger.error(f"Failed to send timeout alert: {e}")
             
+            self.error_count = error_count
             return []
         
         # Graceful degradation: Check if we got any results despite timeout/errors
@@ -653,21 +797,63 @@ class NucleiRunner:
                     logging.warning("⚠️  Removed invalid characters from cookie")
                 stealth_cmd.extend(["-H", f"Cookie: {safe_cookie}"])
             
-            # Run with progress tracking
+            # Run with progress tracking (non-blocking stderr read to avoid deadlocks when output stalls)
             stealth_process = subprocess.Popen(stealth_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            
-            for line in stealth_process.stderr:
-                self._parse_progress(line)
-                if "[FOUND]" in line or "found" in line.lower():
-                    self.vulnerabilities_found += 1
-            
+
+            try:
+                stealth_timeout = int(os.getenv("TRISHUL_NUCLEI_STEALTH_TIMEOUT_SECONDS", "900"))
+            except ValueError:
+                stealth_timeout = 900
+            try:
+                stealth_idle_timeout = int(os.getenv("TRISHUL_NUCLEI_STEALTH_IDLE_TIMEOUT_SECONDS", "120"))
+            except ValueError:
+                stealth_idle_timeout = 120
+
+            stealth_started = time.time()
+            last_stealth_progress = time.time()
+            while True:
+                if stealth_process.poll() is not None:
+                    break
+
+                ready, _, _ = select.select([stealth_process.stderr], [], [], 1.0)
+                if ready:
+                    line = stealth_process.stderr.readline()
+                    if line:
+                        prev_sent = int(self.requests_sent)
+                        self._parse_progress(line)
+                        if int(self.requests_sent) > prev_sent:
+                            last_stealth_progress = time.time()
+                        if "[FOUND]" in line or "found" in line.lower():
+                            self.vulnerabilities_found += 1
+
+                self._calculate_metrics()
+                if progress_callback:
+                    progress_callback(self.get_progress_stats())
+
+                now = time.time()
+                if (now - stealth_started) >= stealth_timeout:
+                    logger.error(
+                        "[NUCLEI DIAGNOSTIC] Stealth scan exceeded timeout (%ss), terminating...",
+                        stealth_timeout,
+                    )
+                    stealth_process.terminate()
+                    break
+
+                if (now - last_stealth_progress) >= stealth_idle_timeout:
+                    logger.warning(
+                        "[NUCLEI DIAGNOSTIC] Stealth scan idle for %ss without progress, terminating...",
+                        stealth_idle_timeout,
+                    )
+                    stealth_process.terminate()
+                    break
+
             # Wait for stealth process with timeout
             logger.info("[NUCLEI DIAGNOSTIC] Starting stealth mode process.wait()...")
             try:
-                exit_code = stealth_process.wait(timeout=3600)  # 1 hour for stealth
+                exit_code = stealth_process.wait(timeout=30)
                 logger.info(f"[NUCLEI DIAGNOSTIC] Stealth process exited with code: {exit_code}")
             except subprocess.TimeoutExpired:
-                logger.error("[NUCLEI DIAGNOSTIC] Stealth scan timed out after 1 hour!")
+                logger.error("[NUCLEI DIAGNOSTIC] Stealth scan did not exit cleanly after terminate, killing...")
                 stealth_process.kill()
                 stealth_process.wait()
                 # Graceful degradation: Try to parse any partial results
@@ -677,6 +863,7 @@ class NucleiRunner:
                     return []
         
         self.is_scanning = False
+        self.error_count = error_count
         
         # --- PHASE 3: PARSING THE LOOT ---
         logger.info("[NUCLEI DIAGNOSTIC] Starting vulnerability parsing phase...")

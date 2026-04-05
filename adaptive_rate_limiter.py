@@ -306,6 +306,15 @@ class AdaptiveRateLimiter:
         if not self.response_times:
             return 0.0
         return sum(self.response_times) / len(self.response_times)
+
+    def maybe_adapt_now(self):
+        """Trigger adaptation when the adaptation interval has elapsed."""
+        with self.lock:
+            if self.in_backoff:
+                return
+            if time.time() - self.last_adaptation_time < self.adaptation_interval:
+                return
+            self._adapt_rate()
     
     def get_status(self) -> Dict:
         """

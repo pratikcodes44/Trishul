@@ -68,6 +68,7 @@ export interface ScanStatusResponse {
   scan_id: string;
   status: "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
   progress: number;
+  started_at?: string;
   scan_mode?: "auto" | "manual_override";
   program_url?: string | null;
   platform?: string | null;
@@ -85,7 +86,7 @@ export interface ScanStatusResponse {
     open_ports: number;
     vulnerabilities: number;
   };
-  completed_at?: string;
+  completed_at?: string | null;
   updated_at?: string;
 }
 

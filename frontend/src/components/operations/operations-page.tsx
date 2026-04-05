@@ -47,10 +47,27 @@ function moduleObjective(phaseName: string, toolName: string) {
   return "Run the active module with controlled telemetry and continuous safety-aware progression.";
 }
 
+function parseTimestampMs(value?: string | null): number | null {
+  if (!value) return null;
+  const normalized = value.trim().replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized);
+  const parsed = Date.parse(hasTimezone ? normalized : `${normalized}Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function formatElapsedFromSeconds(totalSeconds: number): string {
+  const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const ss = String(totalSeconds % 60).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
 export function OperationsPage() {
   const [target, setTarget] = useState("app.example.com");
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState("00:00:00");
+  const [scanStartedAt, setScanStartedAt] = useState<string | null>(null);
+  const [scanCompletedAt, setScanCompletedAt] = useState<string | null>(null);
   const [scanId, setScanId] = useState("");
   const [status, setStatus] = useState<"idle" | "queued" | "running" | "paused" | "completed" | "failed" | "cancelled">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +94,15 @@ export function OperationsPage() {
     const timer = setInterval(async () => {
       try {
         const res = await getScanStatus(scanId);
+        setError(null);
         setProgress(res.progress ?? 0);
         setStatus(res.status);
+        if (res.started_at) setScanStartedAt(res.started_at);
+        if (res.completed_at !== undefined) {
+          setScanCompletedAt(res.completed_at ?? null);
+        } else if (res.status !== "completed" && res.status !== "failed" && res.status !== "cancelled") {
+          setScanCompletedAt(null);
+        }
         setPhaseName(res.current_phase_name ?? "Running");
         setToolName(res.current_tool ?? "pipeline");
         setActivityMessage(res.activity_message ?? `${res.current_phase_name ?? "Scan"} in progress`);
@@ -93,25 +117,36 @@ export function OperationsPage() {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch scan status");
-        setRunning(false);
-        clearInterval(timer);
       }
-    }, 1200);
+    }, 2500);
     return () => clearInterval(timer);
   }, [scanId, status]);
 
   useEffect(() => {
-    if (!running || status === "paused") return;
-    const started = Date.now();
-    const timer = setInterval(() => {
-      const diff = Math.floor((Date.now() - started) / 1000);
-      const hh = String(Math.floor(diff / 3600)).padStart(2, "0");
-      const mm = String(Math.floor((diff % 3600) / 60)).padStart(2, "0");
-      const ss = String(diff % 60).padStart(2, "0");
-      setElapsed(`${hh}:${mm}:${ss}`);
-    }, 1000);
+    if (!scanId || !scanStartedAt) {
+      setElapsed("00:00:00");
+      return;
+    }
+    const startedMs = parseTimestampMs(scanStartedAt);
+    if (startedMs === null) {
+      setElapsed("00:00:00");
+      return;
+    }
+    const updateElapsed = () => {
+      const terminal = status === "completed" || status === "failed" || status === "cancelled";
+      const completedMs = parseTimestampMs(scanCompletedAt);
+      const endMs = terminal && completedMs !== null ? completedMs : Date.now();
+      const diffSeconds = Math.max(0, Math.floor((endMs - startedMs) / 1000));
+      setElapsed(formatElapsedFromSeconds(diffSeconds));
+    };
+    updateElapsed();
+    const terminalWithCompletion =
+      (status === "completed" || status === "failed" || status === "cancelled") &&
+      parseTimestampMs(scanCompletedAt) !== null;
+    if (terminalWithCompletion) return;
+    const timer = setInterval(updateElapsed, 1000);
     return () => clearInterval(timer);
-  }, [running, status]);
+  }, [scanCompletedAt, scanId, scanStartedAt, status]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -137,15 +172,18 @@ export function OperationsPage() {
     setModuleInsight(runningScan.module_insight || "Module is processing current phase workload.");
     setProgramUrl(runningScan.program_url ?? "");
     setPlatform(runningScan.platform ?? "");
+    setScanStartedAt(runningScan.started_at ?? null);
+    setScanCompletedAt(runningScan.completed_at ?? null);
   }, [overview, scanId]);
 
   useEffect(() => {
-    if (!isAuthenticated() || (!running && !scanId)) return;
+    if (!isAuthenticated() || !scanId) return;
+    if (status !== "running" && status !== "queued" && status !== "paused") return;
     const timer = setInterval(() => {
       getOperationsOverview().then(setOverview).catch(() => undefined);
-    }, 1800);
+    }, 6000);
     return () => clearInterval(timer);
-  }, [running, scanId]);
+  }, [scanId, status]);
 
   useEffect(() => {
     const match = (overview?.scans ?? []).find((item) => item.scan_id === scanId);
@@ -159,6 +197,8 @@ export function OperationsPage() {
     if (match.module_insight) setModuleInsight(match.module_insight);
     if (match.program_url) setProgramUrl(match.program_url);
     if (match.platform) setPlatform(match.platform);
+    if (match.started_at) setScanStartedAt(match.started_at);
+    setScanCompletedAt(match.completed_at ?? null);
     if (match.status === "completed" || match.status === "failed" || match.status === "cancelled") {
       setRunning(false);
     } else {
@@ -346,6 +386,9 @@ export function OperationsPage() {
     setError(null);
     setRunning(true);
     setStatus("queued");
+    setScanStartedAt(new Date().toISOString());
+    setScanCompletedAt(null);
+    setElapsed("00:00:00");
     try {
       const res = await startScan({
         target: target.trim(),
@@ -405,6 +448,9 @@ export function OperationsPage() {
     setConfirmAuto(false);
     setRunning(true);
     setStatus("queued");
+    setScanStartedAt(new Date().toISOString());
+    setScanCompletedAt(null);
+    setElapsed("00:00:00");
     try {
       const res = await startScan({
         target: target.trim(),

@@ -55,9 +55,12 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 # Rate Limiting (in-memory for hackathon, use Redis in production)
-rate_limit_store = defaultdict(list)
-RATE_LIMIT = 100  # requests per minute
-RATE_WINDOW = 60  # seconds
+rate_limit_store: Dict[str, List[float]] = defaultdict(list)
+DEFAULT_RATE_LIMIT = int(os.getenv("TRISHUL_RATE_LIMIT_PER_MINUTE", "100"))
+POLLING_RATE_LIMIT = int(os.getenv("TRISHUL_POLLING_RATE_LIMIT_PER_MINUTE", "360"))
+RATE_WINDOW = int(os.getenv("TRISHUL_RATE_LIMIT_WINDOW_SECONDS", "60"))  # seconds
+POLLING_RATE_LIMIT_PATHS = {"/api/v1/operations/overview"}
+POLLING_RATE_LIMIT_PREFIXES = ("/api/v1/scans/",)
 
 UI_STATE_DB = os.getenv("TRISHUL_UI_STATE_DB", "ui_state.db")
 SCAN_TERMINAL_STATES = {"completed", "failed", "cancelled"}
@@ -1071,26 +1074,52 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+def _rate_limit_scope(request: Request) -> tuple[str, int]:
+    path = request.url.path
+    if request.method == "GET" and (
+        path in POLLING_RATE_LIMIT_PATHS or path.startswith(POLLING_RATE_LIMIT_PREFIXES)
+    ):
+        return "polling", POLLING_RATE_LIMIT
+    return "default", DEFAULT_RATE_LIMIT
+
+
+def _rate_limit_principal(request: Request) -> str:
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+        if token:
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            except jwt.InvalidTokenError:
+                payload = None
+            if payload and payload.get("sub"):
+                return f"user:{payload['sub']}"
+    client_ip = request.client.host if request.client else "unknown"
+    return f"ip:{client_ip}"
+
+
 async def rate_limit_check(request: Request):
     """Rate limiting middleware."""
-    client_ip = request.client.host
+    bucket_scope, bucket_limit = _rate_limit_scope(request)
+    principal = _rate_limit_principal(request)
+    bucket_key = f"{bucket_scope}:{principal}"
     current_time = time.time()
     
     # Clean old entries
-    rate_limit_store[client_ip] = [
-        req_time for req_time in rate_limit_store[client_ip]
+    rate_limit_store[bucket_key] = [
+        req_time for req_time in rate_limit_store[bucket_key]
         if current_time - req_time < RATE_WINDOW
     ]
     
     # Check rate limit
-    if len(rate_limit_store[client_ip]) >= RATE_LIMIT:
+    if len(rate_limit_store[bucket_key]) >= bucket_limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded. Max {RATE_LIMIT} requests per minute."
+            detail=f"Rate limit exceeded. Max {bucket_limit} requests per minute."
         )
     
     # Record request
-    rate_limit_store[client_ip].append(current_time)
+    rate_limit_store[bucket_key].append(current_time)
 
 
 # ==========================================
@@ -1323,6 +1352,7 @@ async def get_scan_status(
         "scan_id": row["scan_id"],
         "status": row["status"],
         "progress": row["progress"],
+        "started_at": row["started_at"],
         "scan_mode": row["scan_mode"],
         "program_url": row["program_url"],
         "platform": row["platform"],
